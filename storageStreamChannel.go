@@ -130,10 +130,16 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		return nil, ErrorStreamChannelNotFound
 	}
 
-	// if channelTmp.codecs != nil {
-	// 	log.Println("Got old codec!")
-	// 	return channelTmp.codecs, nil
-	// }
+	if channelTmp.codecs != nil {
+		// log.WithFields(logrus.Fields{
+		// 	"module":  "http_mse",
+		// 	"stream":  streamID,
+		// 	"channel": channelID,
+		// 	"func":    "StreamChannelCodecs",
+		// 	"call":    "chan.updated",
+		// }).Debugln("Got old codec!")
+		return channelTmp.codecs, nil
+	}
 
 	t1 := time.Now().UTC()
 
