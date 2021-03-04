@@ -124,7 +124,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "Send",
+			"call":    "Send MSE meta",
 		}).Errorln(err.Error())
 		return
 	}
@@ -152,7 +152,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		case avPkt := <-avChanW:
 			// log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
 
-			ready, buf, err := muxerMSE.WritePacket(*avPkt, false)
+			ready, buf, err := muxerMSE.WritePacket(*avPkt, true)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "http_mse",
@@ -192,7 +192,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 						"stream":  streamID,
 						"channel": channelID,
 						"func":    "HTTPAPIServerStreamMSE",
-						"call":    "Send",
+						"call":    "Send MSE AV",
 					}).Errorln(err.Error())
 					return
 				}
