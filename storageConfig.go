@@ -49,6 +49,7 @@ func NewStreamCore() *StorageST {
 			i4.ack = time.Now().Add(-255 * time.Hour)
 			i4.hlsSegmentBuffer = make(map[int]Segment)
 			i4.signals = make(chan int, 100)
+			i4.updated = make(chan bool)
 			i2.Channels[i3] = i4
 		}
 		tmp.Streams[i] = i2

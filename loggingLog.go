@@ -16,5 +16,6 @@ func init() {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
+	log.SetReportCaller(false)
 	log.SetLevel(Storage.ServerLogLevel())
 }

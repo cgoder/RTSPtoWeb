@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ const (
 	SignalStreamRestart = iota ///< Y   Restart
 	SignalStreamStop
 	SignalStreamClient
+	SignalStreamCodecUpdate
 )
 
 //generateUUID function make random uuid for clients and stream
@@ -46,4 +49,17 @@ func stringInBetween(str string, start string, end string) (result string) {
 	}
 	str = str[:e]
 	return str
+}
+
+//JsonFormat Json outupt.
+func JsonFormat(v interface{}) string {
+	// if msg == "" {
+	// 	return ""
+	// }
+	var out bytes.Buffer
+
+	bs, _ := json.Marshal(v)
+	json.Indent(&out, bs, "", "\t")
+
+	return out.String()
 }

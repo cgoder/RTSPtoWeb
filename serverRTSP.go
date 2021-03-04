@@ -342,6 +342,13 @@ func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
 		}).Errorln(err.Error())
 		return
 	}
+	log.WithFields(logrus.Fields{
+		"module":  "rtsp_server",
+		"stream":  uuid,
+		"channel": channel,
+		"func":    "handleRTSPServerRequest",
+		"call":    "ClientAdd",
+	}).Debugln("client add and play!")
 	defer func() {
 		Storage.ClientDelete(uuid, cid, channel)
 		log.WithFields(logrus.Fields{
@@ -436,6 +443,7 @@ func parseStage(buf []byte) (string, error) {
 
 //parseStreamChannel func
 func parseStreamChannel(buf []byte) (string, string, error) {
+	log.Println("channel -------> \n", buf)
 	uri := stringInBetween(string(buf), " ", " ")
 	st := strings.Split(uri, "/")
 	if len(st) >= 5 {

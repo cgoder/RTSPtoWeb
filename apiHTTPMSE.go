@@ -8,18 +8,20 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+var timeout_novideo time.Duration = 20
+var tiemout_ws time.Duration = 10
+
 //HTTPAPIServerStreamMSE func
 func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	defer func() {
-		err := ws.Close()
+		_ = ws.Close()
 		log.WithFields(logrus.Fields{
 			"module":  "http_mse",
 			"stream":  ws.Request().FormValue("uuid"),
 			"channel": ws.Request().FormValue("channel"),
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "Close",
-		}).Errorln(err)
-		log.Println("Client Full Exit")
+		}).Debugln("Client Full Exit")
 	}()
 	if !Storage.StreamChannelExist(ws.Request().FormValue("uuid"), ws.Request().FormValue("channel")) {
 		log.WithFields(logrus.Fields{
@@ -31,18 +33,29 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
+
+	log.WithFields(logrus.Fields{
+		"module":  "http_mse",
+		"stream":  ws.Request().FormValue("uuid"),
+		"channel": ws.Request().FormValue("channel"),
+		"func":    "HTTPAPIServerStreamMSE",
+		"call":    "StreamChannelRun",
+	}).Debugln("play stream ---> ", ws.Request().FormValue("uuid"), ws.Request().FormValue("channel"))
+
 	Storage.StreamChannelRun(ws.Request().FormValue("uuid"), ws.Request().FormValue("channel"))
-	err := ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+	codecs, err := Storage.StreamChannelCodecs(ws.Request().FormValue("uuid"), ws.Request().FormValue("channel"))
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "http_mse",
 			"stream":  ws.Request().FormValue("uuid"),
 			"channel": ws.Request().FormValue("channel"),
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "SetWriteDeadline",
+			"call":    "StreamCodecs",
 		}).Errorln(err.Error())
 		return
 	}
+
 	cid, ch, _, err := Storage.ClientAdd(ws.Request().FormValue("uuid"), ws.Request().FormValue("channel"), MSE)
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -55,17 +68,19 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		return
 	}
 	defer Storage.ClientDelete(ws.Request().FormValue("uuid"), cid, ws.Request().FormValue("channel"))
-	codecs, err := Storage.StreamChannelCodecs(ws.Request().FormValue("uuid"), ws.Request().FormValue("channel"))
+
+	err = ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "http_mse",
 			"stream":  ws.Request().FormValue("uuid"),
 			"channel": ws.Request().FormValue("channel"),
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "StreamCodecs",
+			"call":    "SetWriteDeadline",
 		}).Errorln(err.Error())
 		return
 	}
+
 	muxerMSE := mp4f.NewMuxer(nil)
 	err = muxerMSE.WriteHeader(codecs)
 	if err != nil {
@@ -120,9 +135,17 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				}).Errorln(err.Error())
 				return
 			}
+
+			log.WithFields(logrus.Fields{
+				"module":  "http_mse",
+				"stream":  ws.Request().FormValue("uuid"),
+				"channel": ws.Request().FormValue("channel"),
+				"func":    "HTTPAPIServerStreamMSE",
+				"call":    "recv avpkt",
+			}).Debugln("WS recv msg: ", message)
 		}
 	}()
-	noVideo := time.NewTimer(10 * time.Second)
+	noVideo := time.NewTimer(timeout_novideo * time.Second)
 	for {
 		select {
 		case <-controlExit:
@@ -141,16 +164,18 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"channel": ws.Request().FormValue("channel"),
 				"func":    "HTTPAPIServerStreamMSE",
 				"call":    "ErrorStreamNoVideo",
-			}).Errorln(ErrorStreamNoVideo.Error())
+			}).Errorln(ErrorStreamNoVideo.Error(), videoStart)
 			return
 		case pck := <-ch:
 			if pck.IsKeyFrame {
-				noVideo.Reset(10 * time.Second)
 				videoStart = true
 			}
+			noVideo.Reset(timeout_novideo * time.Second)
+
 			if !videoStart {
 				continue
 			}
+
 			ready, buf, err := muxerMSE.WritePacket(*pck, false)
 			if err != nil {
 				log.WithFields(logrus.Fields{
@@ -163,7 +188,17 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				return
 			}
 			if ready {
-				err := ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				if pck.IsKeyFrame {
+					log.WithFields(logrus.Fields{
+						"module":  "http_mse",
+						"stream":  ws.Request().FormValue("uuid"),
+						"channel": ws.Request().FormValue("channel"),
+						"func":    "HTTPAPIServerStreamMSE",
+						"call":    "recv avpkt",
+					}).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", pck.IsKeyFrame, len(buf), pck.Time, pck.Duration)
+				}
+
+				err := ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
 				if err != nil {
 					log.WithFields(logrus.Fields{
 						"module":  "http_mse",
@@ -185,7 +220,18 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 					}).Errorln(err.Error())
 					return
 				}
+			} else {
+				if len(buf) > 0 {
+					log.WithFields(logrus.Fields{
+						"module":  "http_mse",
+						"stream":  ws.Request().FormValue("uuid"),
+						"channel": ws.Request().FormValue("channel"),
+						"func":    "HTTPAPIServerStreamMSE",
+						"call":    "recv avpkt",
+					}).Debugf("Drop frame, key:%v, len:%v, DTS:%v, Dur:%v", pck.IsKeyFrame, len(buf), pck.Time, pck.Duration)
+				}
 			}
+
 		}
 	}
 }

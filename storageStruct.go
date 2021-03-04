@@ -69,14 +69,19 @@ type StreamST struct {
 }
 
 type ChannelST struct {
-	Name             string `json:"name,omitempty" groups:"api,config"`
-	URL              string `json:"url,omitempty" groups:"api,config"`
-	OnDemand         bool   `json:"on_demand,omitempty" groups:"api,config"`
-	Debug            bool   `json:"debug,omitempty" groups:"api,config"`
-	Status           int    `json:"status,omitempty" groups:"api"`
-	runLock          bool
-	codecs           []av.CodecData
-	sdp              []byte
+	Name string `json:"name,omitempty" groups:"api,config"`
+	URL  string `json:"url,omitempty" groups:"api,config"`
+	// auto streaming flag. FALSE==auto. default:false.
+	OnDemand bool `json:"on_demand,omitempty" groups:"api,config"`
+	Debug    bool `json:"debug,omitempty" groups:"api,config"`
+	// online/offline. means this channel has client.
+	Status int `json:"status,omitempty" groups:"api"`
+	// stream is running
+	runLock bool
+	codecs  []av.CodecData
+	sdp     []byte
+	// channel update. or codec update.
+	updated          chan bool
 	signals          chan int
 	hlsSegmentBuffer map[int]Segment
 	hlsSegmentNumber int

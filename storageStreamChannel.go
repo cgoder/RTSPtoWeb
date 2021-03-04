@@ -119,24 +119,75 @@ func (obj *StorageST) StreamChannelInfo(uuid string, channelID string) (*Channel
 
 //StreamChannelCodecs get stream codec storage or wait
 func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]av.CodecData, error) {
-	for i := 0; i < 100; i++ {
-		obj.mutex.RLock()
-		tmp, ok := obj.Streams[streamID]
-		obj.mutex.RUnlock()
-		if !ok {
-			return nil, ErrorStreamNotFound
-		}
-		channelTmp, ok := tmp.Channels[channelID]
-		if !ok {
-			return nil, ErrorStreamChannelNotFound
-		}
+	obj.mutex.RLock()
+	tmp, ok := obj.Streams[streamID]
+	obj.mutex.RUnlock()
+	if !ok {
+		return nil, ErrorStreamNotFound
+	}
+	channelTmp, ok := tmp.Channels[channelID]
+	if !ok {
+		return nil, ErrorStreamChannelNotFound
+	}
 
-		if channelTmp.codecs != nil {
+	// if channelTmp.codecs != nil {
+	// 	log.Println("Got old codec!")
+	// 	return channelTmp.codecs, nil
+	// }
+
+	t1 := time.Now().UTC()
+
+	timer := time.NewTimer(20 * time.Second)
+	for {
+		select {
+		case <-timer.C:
+			log.WithFields(logrus.Fields{
+				"module":  "http_mse",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamChannelCodecs",
+				"call":    "chan.updated",
+			}).Errorln("Get codec timeout!")
+			return nil, ErrorStreamChannelCodecNotFound
+		case <-channelTmp.updated:
+			obj.mutex.RLock()
+			channelTmp, ok := obj.Streams[streamID].Channels[channelID]
+			obj.mutex.RUnlock()
+			if !ok {
+				return nil, ErrorStreamChannelNotFound
+			}
+
+			t2 := time.Now().UTC().Sub(t1)
+			log.WithFields(logrus.Fields{
+				"module":  "http_mse",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamChannelCodecs",
+				"call":    "chan.updated",
+			}).Debugf("Got Stream codec update! cost:%v", t2.String())
+
 			return channelTmp.codecs, nil
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
-	return nil, ErrorStreamChannelCodecNotFound
+
+	// for i := 0; i < 100; i++ {
+	// 	obj.mutex.RLock()
+	// 	tmp, ok := obj.Streams[streamID]
+	// 	obj.mutex.RUnlock()
+	// 	if !ok {
+	// 		return nil, ErrorStreamNotFound
+	// 	}
+	// 	channelTmp, ok := tmp.Channels[channelID]
+	// 	if !ok {
+	// 		return nil, ErrorStreamChannelNotFound
+	// 	}
+
+	// 	if channelTmp.codecs != nil {
+	// 		return channelTmp.codecs, nil
+	// 	}
+	// 	time.Sleep(50 * time.Millisecond)
+	// }
+	// return nil, ErrorStreamChannelCodecNotFound
 }
 
 //StreamChannelStatus change stream status
@@ -243,6 +294,7 @@ func (obj *StorageST) StreamChannelCodecsUpdate(streamID string, channelID strin
 
 //StreamChannelSDP codec storage or wait
 func (obj *StorageST) StreamChannelSDP(streamID string, channelID string) ([]byte, error) {
+	// why for 100 times?
 	for i := 0; i < 100; i++ {
 		obj.mutex.RLock()
 		tmp, ok := obj.Streams[streamID]
@@ -258,6 +310,7 @@ func (obj *StorageST) StreamChannelSDP(streamID string, channelID string) ([]byt
 		if len(channelTmp.sdp) > 0 {
 			return channelTmp.sdp, nil
 		}
+		// why sleep?
 		time.Sleep(50 * time.Millisecond)
 	}
 	return nil, ErrorStreamNotFound

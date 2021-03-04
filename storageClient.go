@@ -30,6 +30,17 @@ func (obj *StorageST) ClientAdd(streamID string, channelID string, mode int) (st
 	channelTmp.ack = time.Now()
 	streamTmp.Channels[channelID] = channelTmp
 	obj.Streams[streamID] = streamTmp
+
+	// log.WithFields(logrus.Fields{
+	// 	"module":  "storageClient",
+	// 	"stream":  streamID,
+	// 	"channel": channelID,
+	// 	"func":    "ClientAdd",
+	// 	"call":    "ClientAdd",
+	// }).Debugln("client Add ---> ")
+
+	// log.Println(obj)
+
 	return cid, chAV, chRTP, nil
 
 }
@@ -55,8 +66,12 @@ func (obj *StorageST) ClientHas(streamID string, channelID string) bool {
 	if !ok {
 		return false
 	}
+	// what is mean? client set 30 seconds auto-offline?
 	if time.Now().Sub(channelTmp.ack).Seconds() > 30 {
 		return false
 	}
+	// if len(channelTmp.clients) > 0 {
+	// 	return true
+	// }
 	return true
 }
