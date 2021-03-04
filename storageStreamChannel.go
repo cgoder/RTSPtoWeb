@@ -73,8 +73,8 @@ func (obj *StorageST) StreamChannelUnlock(streamID string, channelID string) {
 	}
 }
 
-//StreamChannelControl get stream
-func (obj *StorageST) StreamChannelControl(streamID string, channelID string) (*ChannelST, error) {
+//StreamChannelGet get stream
+func (obj *StorageST) StreamChannelGet(streamID string, channelID string) (*ChannelST, error) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	if streamTmp, ok := obj.Streams[streamID]; ok {
@@ -217,7 +217,7 @@ func (obj *StorageST) StreamChannelStatus(streamID string, channelID string, val
 	}
 }
 
-//StreamChannelCast broadcast stream
+//StreamChannelCast broadcast stream av.Pkt
 func (obj *StorageST) StreamChannelCast(streamID string, channelID string, val *av.Packet) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
@@ -256,7 +256,7 @@ func (obj *StorageST) StreamChannelCast(streamID string, channelID string, val *
 	}
 }
 
-//StreamChannelCastProxy broadcast stream
+//StreamChannelCastProxy broadcast stream av.RTP
 func (obj *StorageST) StreamChannelCastProxy(streamID string, channelID string, val *[]byte) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()

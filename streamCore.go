@@ -37,17 +37,19 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			"func":    "StreamServerRunStreamDo",
 			"call":    "Run",
 		}).Infoln("Run stream ", streamID, channelID)
-		channel, err := Storage.StreamChannelControl(streamID, channelID)
+
+		channel, err := Storage.StreamChannelGet(streamID, channelID)
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamChannelControl",
+				"func":    "StreamChannelGet",
 				"call":    "Exit",
 			}).Infoln("Exit", err)
 			return
 		}
+
 		if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
 			log.WithFields(logrus.Fields{
 				"module":  "core",
@@ -58,6 +60,7 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			}).Infoln("Stop stream no client")
 			return
 		}
+
 		// status, err = StreamServerRunStream(streamID, channelID, channel)
 		status, err = StreamServerRunStream(streamID, channelID, channel)
 		if status > 0 {
@@ -103,10 +106,7 @@ func StreamServerRunStream(streamID string, channelID string, channel *ChannelST
 
 //StreamServerRunStream core stream
 func StreamServerRunStreamRtsp(streamID string, channelID string, channel *ChannelST) (int, error) {
-	keyTest := time.NewTimer(20 * time.Second)
-	checkClients := time.NewTimer(20 * time.Second)
-	var preKeyTS = time.Duration(0)
-	var Seq []*av.Packet
+
 	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: true})
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -145,13 +145,18 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, channel *Chann
 			"call":    "Start",
 		}).Debugln("RTSPClient.CodecData update send ---> ", JsonFormat(RTSPClient.CodecData))
 	}
-	log.WithFields(logrus.Fields{
-		"module":  "core",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "StreamServerRunStreamRtsp",
-		"call":    "Start",
-	}).Debugln("Success connection RTSP")
+	// log.WithFields(logrus.Fields{
+	// 	"module":  "core",
+	// 	"stream":  streamID,
+	// 	"channel": channelID,
+	// 	"func":    "StreamServerRunStreamRtsp",
+	// 	"call":    "Start",
+	// }).Debugln("Success connection RTSP")
+
+	// keyTest := time.NewTimer(20 * time.Second)
+	checkClients := time.NewTimer(20 * time.Second)
+	var preKeyTS = time.Duration(0)
+	var Seq []*av.Packet
 
 	for {
 		select {
@@ -163,8 +168,8 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, channel *Chann
 			}
 			checkClients.Reset(20 * time.Second)
 		//Check stream send key
-		case <-keyTest.C:
-			return 0, ErrorStreamNoVideo
+		// case <-keyTest.C:
+		// 	return 0, ErrorStreamNoVideo
 		//Read core signals
 		case signals := <-channel.signals:
 			switch signals {
@@ -173,8 +178,9 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, channel *Chann
 			case SignalStreamRestart:
 				return 0, ErrorStreamRestart
 			case SignalStreamClient:
-
 				return 1, ErrorStreamNoClients
+			case SignalStreamCodecUpdate:
+				return 0, ErrorStreamChannelCodecUpdate
 			}
 		//Read rtsp signals
 		case signals := <-RTSPClient.Signals:
@@ -185,11 +191,11 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, channel *Chann
 				return 0, ErrorStreamStopRTSPSignal
 			}
 		case packetRTP := <-RTSPClient.OutgoingProxyQueue:
-			keyTest.Reset(20 * time.Second)
+			// keyTest.Reset(20 * time.Second)
 			Storage.StreamChannelCastProxy(streamID, channelID, packetRTP)
 		case packetAV := <-RTSPClient.OutgoingPacketQueue:
 			if packetAV.IsKeyFrame {
-				keyTest.Reset(20 * time.Second)
+				// keyTest.Reset(20 * time.Second)
 				if preKeyTS > 0 {
 					Storage.StreamHLSAdd(streamID, channelID, Seq, packetAV.Time-preKeyTS)
 					Seq = []*av.Packet{}
@@ -203,10 +209,6 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, channel *Chann
 }
 
 func StreamServerRunStreamRtmp(streamID string, channelID string, channel *ChannelST) (int, error) {
-	keyTest := time.NewTimer(20 * time.Second)
-	checkClients := time.NewTimer(20 * time.Second)
-	var preKeyTS = time.Duration(0)
-	var Seq []*av.Packet
 
 	RTMPConn, err := rtmp.Dial(channel.URL)
 	// RTMPConn, err := rtmp.DialTimeout(channel.URL, 20)
@@ -227,6 +229,13 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 		"func":    "StreamServerRunStreamRtmp",
 		"call":    "Start",
 	}).Debugln("RTMP Conn---> ", JsonFormat(RTMPConn.URL))
+
+	Storage.StreamChannelStatus(streamID, channelID, ONLINE)
+	defer func() {
+		RTMPConn.Close()
+		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamHLSFlush(streamID, channelID)
+	}()
 
 	// if err := RTMPConn.Prepare(); err != nil {
 	// 	return 0, err
@@ -272,6 +281,11 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
+	// keyTest := time.NewTimer(20 * time.Second)
+	checkClients := time.NewTimer(20 * time.Second)
+	var preKeyTS = time.Duration(0)
+	var Seq []*av.Packet
+
 	for {
 		select {
 		//Check stream have clients
@@ -281,8 +295,8 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 			}
 			checkClients.Reset(20 * time.Second)
 		//Check stream send key
-		case <-keyTest.C:
-			return 0, ErrorStreamNoVideo
+		// case <-keyTest.C:
+		// return 0, ErrorStreamNoVideo
 		//Read core signals
 		case signals := <-channel.signals:
 			switch signals {
@@ -292,6 +306,8 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 				return 0, ErrorStreamRestart
 			case SignalStreamClient:
 				return 1, ErrorStreamNoClients
+			case SignalStreamCodecUpdate:
+				return 0, ErrorStreamChannelCodecUpdate
 			}
 		default:
 			pktRTMP, err := RTMPConn.ReadPacket()
@@ -305,11 +321,12 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 				}).Errorln("ReadPacket error ", err)
 			}
 
-			keyTest.Reset(20 * time.Second)
+			// keyTest.Reset(20 * time.Second)
+			// send av.RTP
 			Storage.StreamChannelCastProxy(streamID, channelID, &pktRTMP.Data)
 
 			if pktRTMP.IsKeyFrame {
-				keyTest.Reset(20 * time.Second)
+				// keyTest.Reset(20 * time.Second)
 				if preKeyTS > 0 {
 					Storage.StreamHLSAdd(streamID, channelID, Seq, pktRTMP.Time-preKeyTS)
 					Seq = []*av.Packet{}
@@ -317,6 +334,7 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, channel *Chann
 				preKeyTS = pktRTMP.Time
 			}
 			Seq = append(Seq, &pktRTMP)
+			// send av.pkt
 			Storage.StreamChannelCast(streamID, channelID, &pktRTMP)
 
 		}
