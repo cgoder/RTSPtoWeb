@@ -67,11 +67,11 @@ func (obj *StorageST) ClientHas(streamID string, channelID string) bool {
 		return false
 	}
 	// what is mean? client set 30 seconds auto-offline?
-	if time.Now().Sub(channelTmp.ack).Seconds() > 30 {
-		return false
-	}
-	// if len(channelTmp.clients) > 0 {
-	// 	return true
+	// if time.Now().Sub(channelTmp.ack).Seconds() > 30 {
+	// 	return false
 	// }
+	if len(channelTmp.clients) > 0 {
+		return true
+	}
 	return true
 }

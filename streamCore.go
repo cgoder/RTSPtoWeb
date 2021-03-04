@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,8 +14,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func init() {
+	format.RegisterAll()
+}
+
 //StreamServerRunStreamDo stream run do mux
 func StreamServerRunStreamDo(streamID string, channelID string) {
+	fmt.Println("StreamServerRunStreamDo--->>>>")
 	var status int
 	defer func() {
 		//TODO fix it no need unlock run if delete stream
@@ -21,6 +28,7 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			Storage.StreamChannelUnlock(streamID, channelID)
 		}
 	}()
+
 	for {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -29,7 +37,7 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			"func":    "StreamServerRunStreamDo",
 			"call":    "Run",
 		}).Infoln("Run stream ", streamID, channelID)
-		opt, err := Storage.StreamChannelControl(streamID, channelID)
+		channel, err := Storage.StreamChannelControl(streamID, channelID)
 		if err != nil {
 			log.WithFields(logrus.Fields{
 				"module":  "core",
@@ -40,7 +48,7 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			}).Infoln("Exit", err)
 			return
 		}
-		if opt.OnDemand && !Storage.ClientHas(streamID, channelID) {
+		if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
 			log.WithFields(logrus.Fields{
 				"module":  "core",
 				"stream":  streamID,
@@ -50,8 +58,8 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 			}).Infoln("Stop stream no client")
 			return
 		}
-		// status, err = StreamServerRunStream(streamID, channelID, opt)
-		status, err = StreamServerRunStream(streamID, channelID, opt)
+		// status, err = StreamServerRunStream(streamID, channelID, channel)
+		status, err = StreamServerRunStream(streamID, channelID, channel)
 		if status > 0 {
 			log.WithFields(logrus.Fields{
 				"module":  "core",
@@ -76,15 +84,11 @@ func StreamServerRunStreamDo(streamID string, channelID string) {
 	}
 }
 
-func init() {
-	format.RegisterAll()
-}
-
-func StreamServerRunStream(streamID string, channelID string, opt *ChannelST) (int, error) {
-	if strings.HasPrefix(opt.URL, "rtmp://") {
-		return StreamServerRunStreamRtmp(streamID, channelID, opt)
-	} else if strings.HasPrefix(opt.URL, "rtsp://") {
-		return StreamServerRunStreamRtsp(streamID, channelID, opt)
+func StreamServerRunStream(streamID string, channelID string, channel *ChannelST) (int, error) {
+	if strings.HasPrefix(channel.URL, "rtmp://") {
+		return StreamServerRunStreamRtmp(streamID, channelID, channel)
+	} else if strings.HasPrefix(channel.URL, "rtsp://") {
+		return StreamServerRunStreamRtsp(streamID, channelID, channel)
 	} else {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -98,12 +102,12 @@ func StreamServerRunStream(streamID string, channelID string, opt *ChannelST) (i
 }
 
 //StreamServerRunStream core stream
-func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST) (int, error) {
+func StreamServerRunStreamRtsp(streamID string, channelID string, channel *ChannelST) (int, error) {
 	keyTest := time.NewTimer(20 * time.Second)
 	checkClients := time.NewTimer(20 * time.Second)
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
-	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: opt.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: opt.Debug, OutgoingProxy: true})
+	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: true})
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -121,13 +125,6 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST
 		"func":    "StreamServerRunStreamRtsp",
 		"call":    "Start",
 	}).Debugln("RTSPClient.SDPRaw---> ", JsonFormat(RTSPClient.SDPRaw))
-	log.WithFields(logrus.Fields{
-		"module":  "core",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "StreamServerRunStreamRtsp",
-		"call":    "Start",
-	}).Debugln("RTSPClient.CodecData---> ", JsonFormat(RTSPClient.CodecData))
 
 	Storage.StreamChannelStatus(streamID, channelID, ONLINE)
 	defer func() {
@@ -138,7 +135,15 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST
 
 	if len(RTSPClient.CodecData) > 0 {
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, RTSPClient.CodecData, RTSPClient.SDPRaw)
-		opt.updated <- true
+		channel.updated <- true
+
+		log.WithFields(logrus.Fields{
+			"module":  "core",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamServerRunStreamRtsp",
+			"call":    "Start",
+		}).Debugln("RTSPClient.CodecData update send ---> ", JsonFormat(RTSPClient.CodecData))
 	}
 	log.WithFields(logrus.Fields{
 		"module":  "core",
@@ -152,7 +157,7 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST
 		select {
 		//Check stream have clients
 		case <-checkClients.C:
-			if opt.OnDemand && !Storage.ClientHas(streamID, channelID) {
+			if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
 
 				return 1, ErrorStreamNoClients
 			}
@@ -161,7 +166,7 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST
 		case <-keyTest.C:
 			return 0, ErrorStreamNoVideo
 		//Read core signals
-		case signals := <-opt.signals:
+		case signals := <-channel.signals:
 			switch signals {
 			case SignalStreamStop:
 				return 2, ErrorStreamStopCoreSignal
@@ -197,14 +202,14 @@ func StreamServerRunStreamRtsp(streamID string, channelID string, opt *ChannelST
 	}
 }
 
-func StreamServerRunStreamRtmp(streamID string, channelID string, opt *ChannelST) (int, error) {
+func StreamServerRunStreamRtmp(streamID string, channelID string, channel *ChannelST) (int, error) {
 	keyTest := time.NewTimer(20 * time.Second)
 	checkClients := time.NewTimer(20 * time.Second)
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 
-	RTMPConn, err := rtmp.Dial(opt.URL)
-	// RTMPConn, err := rtmp.DialTimeout(opt.URL, 20)
+	RTMPConn, err := rtmp.Dial(channel.URL)
+	// RTMPConn, err := rtmp.DialTimeout(channel.URL, 20)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -249,7 +254,7 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, opt *ChannelST
 
 	if len(streams) > 0 {
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, streams, nil)
-		opt.updated <- true
+		channel.updated <- true
 	}
 
 	// log.WithFields(logrus.Fields{
@@ -271,7 +276,7 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, opt *ChannelST
 		select {
 		//Check stream have clients
 		case <-checkClients.C:
-			if opt.OnDemand && !Storage.ClientHas(streamID, channelID) {
+			if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
 				return 1, ErrorStreamNoClients
 			}
 			checkClients.Reset(20 * time.Second)
@@ -279,7 +284,7 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, opt *ChannelST
 		case <-keyTest.C:
 			return 0, ErrorStreamNoVideo
 		//Read core signals
-		case signals := <-opt.signals:
+		case signals := <-channel.signals:
 			switch signals {
 			case SignalStreamStop:
 				return 2, ErrorStreamStopCoreSignal
@@ -313,6 +318,66 @@ func StreamServerRunStreamRtmp(streamID string, channelID string, opt *ChannelST
 			}
 			Seq = append(Seq, &pktRTMP)
 			Storage.StreamChannelCast(streamID, channelID, &pktRTMP)
+
+		}
+	}
+}
+
+func StreamServerStreamChannel(ctx context.Context, streamID string, channelID string, pktChanR <-chan *av.Packet, pktChanW chan<- *av.Packet, timeout int) {
+	// cid, pktChan, _, err := Storage.ClientAdd(streamID, channelID, mode)
+	// if err != nil {
+	// 	log.WithFields(logrus.Fields{
+	// 		"module":  "core",
+	// 		"stream":  streamID,
+	// 		"channel": channelID,
+	// 		"func":    "StreamServerStreamDeal",
+	// 		"call":    "ClientAdd",
+	// 	}).Errorln(err.Error())
+	// 	return
+	// }
+	// defer Storage.ClientDelete(streamID, cid, channelID)
+
+	var videoStart bool
+	noVideo := time.NewTimer(time.Duration(timeout) * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "context.Done",
+			}).Debugln(ctx.Err())
+			return
+		case <-noVideo.C:
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "ErrorStreamNoVideo",
+			}).Errorln(ErrorStreamNoVideo.Error())
+			return
+		case pck := <-pktChanR:
+			if pck.IsKeyFrame {
+				noVideo.Reset(time.Duration(timeout) * time.Second)
+				videoStart = true
+			}
+			if !videoStart {
+				continue
+			}
+
+			pktChanW <- pck
+
+			// log.WithFields(logrus.Fields{
+			// 	"module":  "core",
+			// 	"stream":  streamID,
+			// 	"channel": channelID,
+			// 	"func":    "StreamServerStreamChannel",
+			// 	"call":    "Write frame",
+			// }).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", pck.IsKeyFrame, len(pck.Data), pck.Time, pck.Duration)
 
 		}
 	}

@@ -74,7 +74,7 @@ type ChannelST struct {
 	// auto streaming flag. FALSE==auto. default:false.
 	OnDemand bool `json:"on_demand,omitempty" groups:"api,config"`
 	Debug    bool `json:"debug,omitempty" groups:"api,config"`
-	// online/offline. means this channel has client.
+	// online/offline. means channel is streaming.
 	Status int `json:"status,omitempty" groups:"api"`
 	// stream is running
 	runLock bool

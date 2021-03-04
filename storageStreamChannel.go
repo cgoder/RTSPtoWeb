@@ -38,13 +38,13 @@ func (obj *StorageST) StreamChannelRunAll() {
 
 //StreamChannelRun one stream and lock
 func (obj *StorageST) StreamChannelRun(streamID string, channelID string) {
-	log.WithFields(logrus.Fields{
-		"module":  "http_hls",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "StreamChannelRun",
-		"call":    "StreamChannelRun",
-	}).Debugln("StreamChannelRun ->>>>>>>>>>>>>>>>>")
+	// log.WithFields(logrus.Fields{
+	// 	"module":  "http_hls",
+	// 	"stream":  streamID,
+	// 	"channel": channelID,
+	// 	"func":    "StreamChannelRun",
+	// 	"call":    "StreamChannelRun",
+	// }).Debugln("StreamChannelRun ->>>>>>>>>>>>>>>>>")
 
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
@@ -74,10 +74,10 @@ func (obj *StorageST) StreamChannelUnlock(streamID string, channelID string) {
 }
 
 //StreamChannelControl get stream
-func (obj *StorageST) StreamChannelControl(key string, channelID string) (*ChannelST, error) {
+func (obj *StorageST) StreamChannelControl(streamID string, channelID string) (*ChannelST, error) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if streamTmp, ok := obj.Streams[key]; ok {
+	if streamTmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
 			return &channelTmp, nil
 		}
@@ -139,13 +139,13 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 	}
 
 	if channelTmp.runLock && channelTmp.codecs != nil {
-		log.WithFields(logrus.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "StreamChannelCodecs",
-			"call":    "chan.updated",
-		}).Debugln("Got old codec!")
+		// log.WithFields(logrus.Fields{
+		// 	"module":  "http_mse",
+		// 	"stream":  streamID,
+		// 	"channel": channelID,
+		// 	"func":    "StreamChannelCodecs",
+		// 	"call":    "chan.updated",
+		// }).Debugln("Got old codec!")
 		return channelTmp.codecs, nil
 	}
 
@@ -205,23 +205,23 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 }
 
 //StreamChannelStatus change stream status
-func (obj *StorageST) StreamChannelStatus(key string, channelID string, val int) {
+func (obj *StorageST) StreamChannelStatus(streamID string, channelID string, val int) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[key]; ok {
+	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			channelTmp.Status = val
 			tmp.Channels[channelID] = channelTmp
-			obj.Streams[key] = tmp
+			obj.Streams[streamID] = tmp
 		}
 	}
 }
 
 //StreamChannelCast broadcast stream
-func (obj *StorageST) StreamChannelCast(key string, channelID string, val *av.Packet) {
+func (obj *StorageST) StreamChannelCast(streamID string, channelID string, val *av.Packet) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[key]; ok {
+	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			if len(channelTmp.clients) > 0 {
 				for _, i2 := range channelTmp.clients {
@@ -239,8 +239,8 @@ func (obj *StorageST) StreamChannelCast(key string, channelID string, val *av.Pa
 							if err != nil {
 								log.WithFields(logrus.Fields{
 									"module":  "storage",
-									"stream":  key,
-									"channel": key,
+									"stream":  streamID,
+									"channel": channelID,
 									"func":    "CastProxy",
 									"call":    "Close",
 								}).Errorln(err.Error())
@@ -250,17 +250,17 @@ func (obj *StorageST) StreamChannelCast(key string, channelID string, val *av.Pa
 				}
 				channelTmp.ack = time.Now()
 				tmp.Channels[channelID] = channelTmp
-				obj.Streams[key] = tmp
+				obj.Streams[streamID] = tmp
 			}
 		}
 	}
 }
 
 //StreamChannelCastProxy broadcast stream
-func (obj *StorageST) StreamChannelCastProxy(key string, channelID string, val *[]byte) {
+func (obj *StorageST) StreamChannelCastProxy(streamID string, channelID string, val *[]byte) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[key]; ok {
+	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			if len(channelTmp.clients) > 0 {
 				for _, i2 := range channelTmp.clients {
@@ -276,8 +276,8 @@ func (obj *StorageST) StreamChannelCastProxy(key string, channelID string, val *
 						if err != nil {
 							log.WithFields(logrus.Fields{
 								"module":  "storage",
-								"stream":  key,
-								"channel": key,
+								"stream":  streamID,
+								"channel": channelID,
 								"func":    "CastProxy",
 								"call":    "Close",
 							}).Errorln(err.Error())
@@ -286,7 +286,7 @@ func (obj *StorageST) StreamChannelCastProxy(key string, channelID string, val *
 				}
 				channelTmp.ack = time.Now()
 				tmp.Channels[channelID] = channelTmp
-				obj.Streams[key] = tmp
+				obj.Streams[streamID] = tmp
 			}
 		}
 	}
