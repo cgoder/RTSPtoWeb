@@ -38,6 +38,14 @@ func (obj *StorageST) StreamChannelRunAll() {
 
 //StreamChannelRun one stream and lock
 func (obj *StorageST) StreamChannelRun(streamID string, channelID string) {
+	log.WithFields(logrus.Fields{
+		"module":  "http_hls",
+		"stream":  streamID,
+		"channel": channelID,
+		"func":    "StreamChannelRun",
+		"call":    "StreamChannelRun",
+	}).Debugln("StreamChannelRun ->>>>>>>>>>>>>>>>>")
+
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	if streamTmp, ok := obj.Streams[streamID]; ok {
@@ -130,14 +138,14 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		return nil, ErrorStreamChannelNotFound
 	}
 
-	if channelTmp.codecs != nil {
-		// log.WithFields(logrus.Fields{
-		// 	"module":  "http_mse",
-		// 	"stream":  streamID,
-		// 	"channel": channelID,
-		// 	"func":    "StreamChannelCodecs",
-		// 	"call":    "chan.updated",
-		// }).Debugln("Got old codec!")
+	if channelTmp.runLock && channelTmp.codecs != nil {
+		log.WithFields(logrus.Fields{
+			"module":  "http_mse",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamChannelCodecs",
+			"call":    "chan.updated",
+		}).Debugln("Got old codec!")
 		return channelTmp.codecs, nil
 	}
 
