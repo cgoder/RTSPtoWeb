@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"time"
 
 	"github.com/deepch/vdk/format/ts"
@@ -23,7 +24,7 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 		return
 	}
 	c.Header("Content-Type", "application/x-mpegURL")
-	Storage.StreamChannelRun(c.Param("uuid"), c.Param("channel"))
+	Storage.StreamChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
 	//If stream mode on_demand need wait ready segment's
 	for i := 0; i < 40; i++ {
 		index, seq, err := Storage.StreamHLSm3u8(c.Param("uuid"), c.Param("channel"))

@@ -5,7 +5,6 @@ import (
 	"flag"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/hashicorp/go-version"
 
@@ -45,12 +44,8 @@ func NewStreamCore() *StorageST {
 	debug = tmp.Server.Debug
 	for i, i2 := range tmp.Streams {
 		for i3, i4 := range i2.Channels {
-			i4.clients = make(map[string]ClientST)
-			i4.ack = time.Now().Add(-255 * time.Hour)
-			i4.hlsSegmentBuffer = make(map[int]Segment)
-			i4.signals = make(chan int, 100)
-			i4.updated = make(chan bool)
-			i2.Channels[i3] = i4
+			tmpCh := StreamChannelNew(i4)
+			i2.Channels[i3] = tmpCh
 		}
 		tmp.Streams[i] = i2
 	}

@@ -1,5 +1,7 @@
 package main
 
+import "context"
+
 //StreamsList list all stream
 func (obj *StorageST) StreamsList() map[string]StreamST {
 	obj.mutex.RLock()
@@ -21,9 +23,9 @@ func (obj *StorageST) StreamAdd(uuid string, val StreamST) error {
 	for i, i2 := range val.Channels {
 		i2 = obj.StreamChannelMake(i2)
 		if !i2.OnDemand {
-			i2.runLock = true
+			// i2.runLock = true
 			val.Channels[i] = i2
-			go StreamServerRunStreamDo(uuid, i)
+			go StreamServerRunStreamDo(context.TODO(), uuid, i)
 		} else {
 			val.Channels[i] = i2
 		}
@@ -43,7 +45,7 @@ func (obj *StorageST) StreamEdit(uuid string, val StreamST) error {
 	defer obj.mutex.Unlock()
 	if tmp, ok := obj.Streams[uuid]; ok {
 		for i, i2 := range tmp.Channels {
-			if i2.runLock {
+			if i2.Status == ONLINE {
 				tmp.Channels[i] = i2
 				obj.Streams[uuid] = tmp
 				i2.signals <- SignalStreamStop
@@ -52,9 +54,9 @@ func (obj *StorageST) StreamEdit(uuid string, val StreamST) error {
 		for i3, i4 := range val.Channels {
 			i4 = obj.StreamChannelMake(i4)
 			if !i4.OnDemand {
-				i4.runLock = true
+				// i4.runLock = true
 				val.Channels[i3] = i4
-				go StreamServerRunStreamDo(uuid, i3)
+				go StreamServerRunStreamDo(context.TODO(), uuid, i3)
 			} else {
 				val.Channels[i3] = i4
 			}
@@ -75,7 +77,7 @@ func (obj *StorageST) StopAll() {
 	defer obj.mutex.RUnlock()
 	for _, st := range obj.Streams {
 		for _, i2 := range st.Channels {
-			if i2.runLock {
+			if i2.Status == ONLINE {
 				i2.signals <- SignalStreamStop
 			}
 		}
@@ -88,7 +90,7 @@ func (obj *StorageST) StreamReload(uuid string) error {
 	defer obj.mutex.RUnlock()
 	if tmp, ok := obj.Streams[uuid]; ok {
 		for _, i2 := range tmp.Channels {
-			if i2.runLock {
+			if i2.Status == ONLINE {
 				i2.signals <- SignalStreamRestart
 			}
 		}
@@ -103,7 +105,7 @@ func (obj *StorageST) StreamDelete(uuid string) error {
 	defer obj.mutex.Unlock()
 	if tmp, ok := obj.Streams[uuid]; ok {
 		for _, i2 := range tmp.Channels {
-			if i2.runLock {
+			if i2.Status == ONLINE {
 				i2.signals <- SignalStreamStop
 			}
 		}

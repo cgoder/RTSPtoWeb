@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"io"
 	"time"
 
-	"github.com/deepch/vdk/av"
 	"github.com/deepch/vdk/format/mp4f"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -18,7 +18,9 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	streamID := ws.Request().FormValue("uuid")
 	channelID := ws.Request().FormValue("channel")
 
-	// close websocket.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// close websocket. and release goroutine.
 	defer func() {
 		_ = ws.Close()
 		log.WithFields(logrus.Fields{
@@ -26,13 +28,22 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "Close",
-		}).Debugln("Client Full Exit")
+			"call":    "MSE",
+		}).Debugln("MSE Exit")
+
+		cancel()
+		log.WithFields(logrus.Fields{
+			"module":  "http_mse",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "HTTPAPIServerStreamMSE",
+			"call":    "recv avpkt",
+		}).Infoln("Cancelled av send goroutine.")
 	}()
 
 	// check stream status
 	// if !Storage.StreamChannelExist(streamID, channelID)
-	ch, err := Storage.StreamChannelInfo(streamID, channelID)
+	ch, err := Storage.StreamChannelGet(streamID, channelID)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "http_mse",
@@ -44,6 +55,18 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		return
 	}
 
+	// streaming
+	err = Storage.StreamChannelRun(ctx, streamID, channelID)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"module":  "http_mse",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "HTTPAPIServerStreamMSE",
+			"call":    "StreamChannelRun",
+		}).Errorln(err)
+		return
+	}
 	log.WithFields(logrus.Fields{
 		"module":  "http_mse",
 		"stream":  streamID,
@@ -51,7 +74,6 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		"func":    "HTTPAPIServerStreamMSE",
 		"call":    "StreamChannelRun",
 	}).Debugln("play stream ---> ", streamID, channelID)
-	Storage.StreamChannelRun(streamID, channelID)
 
 	// get stream av.Codec
 	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
@@ -92,6 +114,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(err.Error())
 		return
 	}
+
 	// init MSE muxer
 	muxerMSE := mp4f.NewMuxer(nil)
 	err = muxerMSE.WriteHeader(codecs)
@@ -130,27 +153,45 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}
 
 	// make writeable chan for read av.pkt
-	avChanW := make(chan *av.Packet, 10)
+	// avChanW := make(chan *av.Packet, 10)
 
 	// creat recv av.pkt goroutine
-	ctx, cancel := context.WithCancel(context.Background())
-	go StreamServerStreamChannel(ctx, streamID, channelID, avChanR, avChanW, 20)
-	// cancel av.packet send goroutine.
-	defer func() {
-		cancel()
-		log.WithFields(logrus.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "recv avpkt",
-		}).Infoln("Cancelled av send goroutine.")
-	}()
+
+	go wsCheck(ctx, streamID, channelID, ws)
+
+	var videoStart bool
+	noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
 
 	for {
 		select {
-		case avPkt := <-avChanW:
+		case <-ctx.Done():
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "context.Done",
+			}).Debugln(ctx.Err())
+			return
+		case <-noVideo.C:
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "ErrorStreamNoVideo",
+			}).Errorln(ErrorStreamNoVideo.Error())
+			return
+		case avPkt := <-avChanR:
 			// log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
+			if avPkt.IsKeyFrame {
+				videoStart = true
+			}
+			noVideo.Reset(time.Duration(timeout_novideo) * time.Second)
+
+			if !videoStart {
+				continue
+			}
 
 			ready, buf, err := muxerMSE.WritePacket(*avPkt, true)
 			if err != nil {
@@ -207,147 +248,55 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 					}).Debugf("Drop frame, key:%v, len:%v, DTS:%v, Dur:%v", avPkt.IsKeyFrame, len(buf), avPkt.Time, avPkt.Duration)
 				}
 			}
-			// default:
-			// 	var message string
-			// 	err := websocket.Message.Receive(ws, &message)
-			// 	if err != nil {
-			// 		log.WithFields(logrus.Fields{
-			// 			"module":  "http_mse",
-			// 			"stream":  streamID,
-			// 			"channel": channelID,
-			// 			"func":    "HTTPAPIServerStreamMSE",
-			// 			"call":    "Receive",
-			// 		}).Errorln(err.Error())
-			// 		return
-			// 	}
 
-			// 	log.WithFields(logrus.Fields{
-			// 	"module":  "http_mse",
-			// 	"stream":  streamID,
-			// 	"channel": channelID,
-			// 	"func":    "HTTPAPIServerStreamMSE",
-			// 	"call":    "recv avpkt",
-			// }).Debugln("WS recv msg: ", message)
 		}
 	}
 
-	// var videoStart bool
-	// controlExit := make(chan bool, 10)
-	// go func() {
-	// 	defer func() {
-	// 		controlExit <- true
-	// 	}()
-	// 	for {
-	// 		var message string
-	// 		err := websocket.Message.Receive(ws, &message)
-	// 		if err != nil {
-	// 			log.WithFields(logrus.Fields{
-	// 				"module":  "http_mse",
-	// 				"stream":  streamID,
-	// 				"channel": channelID,
-	// 				"func":    "HTTPAPIServerStreamMSE",
-	// 				"call":    "Receive",
-	// 			}).Errorln(err.Error())
-	// 			return
-	// 		}
+}
 
-	// 		log.WithFields(logrus.Fields{
-	// 			"module":  "http_mse",
-	// 			"stream":  streamID,
-	// 			"channel": channelID,
-	// 			"func":    "HTTPAPIServerStreamMSE",
-	// 			"call":    "recv avpkt",
-	// 		}).Debugln("WS recv msg: ", message)
-	// 	}
-	// }()
+func wsCheck(ctx context.Context, streamID string, channelID string, ws *websocket.Conn) {
+	for {
+		select {
+		case <-ctx.Done():
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "context.Done",
+			}).Debugln(ctx.Err())
+			return
+		default:
+			var message string
+			err := websocket.Message.Receive(ws, &message)
+			if err != nil {
+				if err == io.EOF {
+					log.WithFields(logrus.Fields{
+						"module":  "http_mse",
+						"stream":  streamID,
+						"channel": channelID,
+						"func":    "HTTPAPIServerStreamMSE",
+						"call":    "WS.Receive",
+					}).Infoln("EXIT! WS got exit signal.")
+				} else {
+					log.WithFields(logrus.Fields{
+						"module":  "http_mse",
+						"stream":  streamID,
+						"channel": channelID,
+						"func":    "HTTPAPIServerStreamMSE",
+						"call":    "WS.Receive",
+					}).Errorln(err.Error())
+				}
+				return
+			}
 
-	// noVideo := time.NewTimer(timeout_novideo * time.Second)
-	// for {
-	// 	select {
-	// 	case <-controlExit:
-	// 		log.WithFields(logrus.Fields{
-	// 			"module":  "http_mse",
-	// 			"stream":  streamID,
-	// 			"channel": channelID,
-	// 			"func":    "HTTPAPIServerStreamMSE",
-	// 			"call":    "controlExit",
-	// 		}).Errorln("Client Reader Exit")
-	// 		return
-	// 	case <-noVideo.C:
-	// 		log.WithFields(logrus.Fields{
-	// 			"module":  "http_mse",
-	// 			"stream":  streamID,
-	// 			"channel": channelID,
-	// 			"func":    "HTTPAPIServerStreamMSE",
-	// 			"call":    "ErrorStreamNoVideo",
-	// 		}).Errorln(ErrorStreamNoVideo.Error(), videoStart)
-	// 		return
-	// 	case avpkt := <-ch:
-	// 		if avpkt.IsKeyFrame {
-	// 			videoStart = true
-	// 		}
-	// 		noVideo.Reset(timeout_novideo * time.Second)
-
-	// 		if !videoStart {
-	// 			continue
-	// 		}
-
-	// 		ready, buf, err := muxerMSE.WritePacket(*avpkt, false)
-	// 		if err != nil {
-	// 			log.WithFields(logrus.Fields{
-	// 				"module":  "http_mse",
-	// 				"stream":  streamID,
-	// 				"channel": channelID,
-	// 				"func":    "HTTPAPIServerStreamMSE",
-	// 				"call":    "WritePacket",
-	// 			}).Errorln(err.Error())
-	// 			return
-	// 		}
-	// 		if ready {
-	// 			if avpkt.IsKeyFrame {
-	// 				log.WithFields(logrus.Fields{
-	// 					"module":  "http_mse",
-	// 					"stream":  streamID,
-	// 					"channel": channelID,
-	// 					"func":    "HTTPAPIServerStreamMSE",
-	// 					"call":    "recv avpkt",
-	// 				}).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", avpkt.IsKeyFrame, len(buf), avpkt.Time, avpkt.Duration)
-	// 			}
-
-	// 			err := ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
-	// 			if err != nil {
-	// 				log.WithFields(logrus.Fields{
-	// 					"module":  "http_mse",
-	// 					"stream":  streamID,
-	// 					"channel": channelID,
-	// 					"func":    "HTTPAPIServerStreamMSE",
-	// 					"call":    "SetWriteDeadline",
-	// 				}).Errorln(err.Error())
-	// 				return
-	// 			}
-	// 			err = websocket.Message.Send(ws, buf)
-	// 			if err != nil {
-	// 				log.WithFields(logrus.Fields{
-	// 					"module":  "http_mse",
-	// 					"stream":  streamID,
-	// 					"channel": channelID,
-	// 					"func":    "HTTPAPIServerStreamMSE",
-	// 					"call":    "Send",
-	// 				}).Errorln(err.Error())
-	// 				return
-	// 			}
-	// 		} else {
-	// 			if len(buf) > 0 {
-	// 				log.WithFields(logrus.Fields{
-	// 					"module":  "http_mse",
-	// 					"stream":  streamID,
-	// 					"channel": channelID,
-	// 					"func":    "HTTPAPIServerStreamMSE",
-	// 					"call":    "recv avpkt",
-	// 				}).Debugf("Drop frame, key:%v, len:%v, DTS:%v, Dur:%v", avpkt.IsKeyFrame, len(buf), avpkt.Time, avpkt.Duration)
-	// 			}
-	// 		}
-
-	// 	}
-	// }
+			log.WithFields(logrus.Fields{
+				"module":  "http_mse",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "HTTPAPIServerStreamMSE",
+				"call":    "recv avpkt",
+			}).Debugln("WS recv msg: ", message)
+		}
+	}
 }

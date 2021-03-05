@@ -1,34 +1,42 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/deepch/vdk/av"
 	"github.com/sirupsen/logrus"
 )
 
+func StreamChannelNew(val ChannelST) ChannelST {
+	tmpCh := val
+	//make client's
+	tmpCh.clients = make(map[string]ClientST)
+	//make last ack
+	tmpCh.ack = time.Now().Add(-255 * time.Hour)
+	//make hls buffer
+	tmpCh.hlsSegmentBuffer = make(map[int]Segment)
+	//make signals buffer chain
+	tmpCh.signals = make(chan int, 100)
+	// make chan for av.Codec update
+	tmpCh.updated = make(chan bool)
+	return tmpCh
+}
+
 //StreamChannelMake check stream exist
 func (obj *StorageST) StreamChannelMake(val ChannelST) ChannelST {
-	//make client's
-	val.clients = make(map[string]ClientST)
-	//make last ack
-	val.ack = time.Now().Add(-255 * time.Hour)
-	//make hls buffer
-	val.hlsSegmentBuffer = make(map[int]Segment)
-	//make signals buffer chain
-	val.signals = make(chan int, 100)
-	return val
+	return StreamChannelNew(val)
 }
 
 //StreamChannelRunAll run all stream go
-func (obj *StorageST) StreamChannelRunAll() {
+func (obj *StorageST) StreamChannelRunAll(ctx context.Context) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	for k, v := range obj.Streams {
 		for ks, vs := range v.Channels {
 			if !vs.OnDemand {
-				vs.runLock = true
-				go StreamServerRunStreamDo(k, ks)
+				// vs.runLock = true
+				go StreamServerRunStreamDo(ctx, k, ks)
 				v.Channels[ks] = vs
 				obj.Streams[k] = v
 			}
@@ -37,40 +45,41 @@ func (obj *StorageST) StreamChannelRunAll() {
 }
 
 //StreamChannelRun one stream and lock
-func (obj *StorageST) StreamChannelRun(streamID string, channelID string) {
+func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, channelID string) error {
 	// log.WithFields(logrus.Fields{
-	// 	"module":  "http_hls",
+	// 	"module":  "StreamChannel",
 	// 	"stream":  streamID,
 	// 	"channel": channelID,
 	// 	"func":    "StreamChannelRun",
 	// 	"call":    "StreamChannelRun",
 	// }).Debugln("StreamChannelRun ->>>>>>>>>>>>>>>>>")
 
+	// get stream channel
+	_, err := Storage.StreamChannelGet(streamID, channelID)
+	if err != nil {
+		log.WithFields(logrus.Fields{
+			"module":  "StreamChannel",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamChannelRun",
+			"call":    "StreamChannelGet",
+		}).Infoln("Exit", err)
+		return ErrorStreamChannelNotFound
+	}
+
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	if streamTmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
-			if !channelTmp.runLock {
-				channelTmp.runLock = true
-				streamTmp.Channels[channelID] = channelTmp
-				obj.Streams[streamID] = streamTmp
-				go StreamServerRunStreamDo(streamID, channelID)
+			if channelTmp.Status != ONLINE {
+				// streamTmp.Channels[channelID] = channelTmp
+				// obj.Streams[streamID] = streamTmp
+				go StreamServerRunStreamDo(ctx, streamID, channelID)
+				return nil
 			}
 		}
 	}
-}
-
-//StreamChannelUnlock unlock status to no lock
-func (obj *StorageST) StreamChannelUnlock(streamID string, channelID string) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if streamTmp, ok := obj.Streams[streamID]; ok {
-		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
-			channelTmp.runLock = false
-			streamTmp.Channels[channelID] = channelTmp
-			obj.Streams[streamID] = streamTmp
-		}
-	}
+	return nil
 }
 
 //StreamChannelGet get stream
@@ -81,8 +90,11 @@ func (obj *StorageST) StreamChannelGet(streamID string, channelID string) (*Chan
 		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
 			return &channelTmp, nil
 		}
+		return nil, ErrorStreamChannelNotFound
+
 	}
 	return nil, ErrorStreamNotFound
+
 }
 
 //StreamChannelExist check stream exist
@@ -108,21 +120,11 @@ func (obj *StorageST) StreamChannelReload(uuid string, channelID string) error {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			channelTmp.signals <- SignalStreamRestart
 			return nil
+		} else {
+			return ErrorStreamChannelNotFound
 		}
 	}
 	return ErrorStreamNotFound
-}
-
-//StreamInfo return stream info
-func (obj *StorageST) StreamChannelInfo(uuid string, channelID string) (*ChannelST, error) {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			return &channelTmp, nil
-		}
-	}
-	return nil, ErrorStreamNotFound
 }
 
 //StreamChannelCodecs get stream codec storage or wait
@@ -138,9 +140,9 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		return nil, ErrorStreamChannelNotFound
 	}
 
-	if channelTmp.runLock && channelTmp.codecs != nil {
+	if channelTmp.Status == ONLINE && channelTmp.codecs != nil {
 		// log.WithFields(logrus.Fields{
-		// 	"module":  "http_mse",
+		// 	"module":  "StreamChannel",
 		// 	"stream":  streamID,
 		// 	"channel": channelID,
 		// 	"func":    "StreamChannelCodecs",
@@ -156,7 +158,7 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		select {
 		case <-timer.C:
 			log.WithFields(logrus.Fields{
-				"module":  "http_mse",
+				"module":  "StreamChannel",
 				"stream":  streamID,
 				"channel": channelID,
 				"func":    "StreamChannelCodecs",
@@ -205,91 +207,171 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 }
 
 //StreamChannelStatus change stream status
-func (obj *StorageST) StreamChannelStatus(streamID string, channelID string, val int) {
+func (obj *StorageST) StreamChannelStatus(streamID string, channelID string, status int) error {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			channelTmp.Status = val
+			channelTmp.Status = status
 			tmp.Channels[channelID] = channelTmp
 			obj.Streams[streamID] = tmp
+			return nil
 		}
+		return ErrorStreamChannelNotFound
+
 	}
+	return ErrorStreamNotFound
 }
 
 //StreamChannelCast broadcast stream av.Pkt
 func (obj *StorageST) StreamChannelCast(streamID string, channelID string, val *av.Packet) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[streamID]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			if len(channelTmp.clients) > 0 {
-				for _, i2 := range channelTmp.clients {
-					if i2.mode == RTSP {
-						continue
+	ch, err := Storage.StreamChannelGet(streamID, channelID)
+	if err != nil || ch == nil {
+		log.WithFields(logrus.Fields{
+			"module":  "StreamChannel",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamChannelCast",
+			"call":    "StreamChannelGet",
+		}).Errorf("Get channel fail!")
+		return
+	}
+
+	if len(ch.clients) > 0 {
+		for _, client := range ch.clients {
+			if client.mode == RTSP {
+				continue
+			}
+			if len(client.outgoingAVPacket) < lenAvPacketQueue {
+				client.outgoingAVPacket <- val
+			} else if len(client.signals) < lenClientSignalQueue {
+				//send stop signals to client
+				client.signals <- SignalStreamStop
+				//No need close socket only send signal to reader / writer socket closed if client go to offline
+				/*
+					err := client.socket.Close()
+					if err != nil {
+						log.WithFields(logrus.Fields{
+							"module":  "storage",
+							"stream":  streamID,
+							"channel": channelID,
+							"func":    "CastProxy",
+							"call":    "Close",
+						}).Errorln(err.Error())
 					}
-					if len(i2.outgoingAVPacket) < 1000 {
-						i2.outgoingAVPacket <- val
-					} else if len(i2.signals) < 10 {
-						//send stop signals to client
-						i2.signals <- SignalStreamStop
-						//No need close socket only send signal to reader / writer socket closed if client go to offline
-						/*
-							err := i2.socket.Close()
-							if err != nil {
-								log.WithFields(logrus.Fields{
-									"module":  "storage",
-									"stream":  streamID,
-									"channel": channelID,
-									"func":    "CastProxy",
-									"call":    "Close",
-								}).Errorln(err.Error())
-							}
-						*/
-					}
-				}
-				channelTmp.ack = time.Now()
-				tmp.Channels[channelID] = channelTmp
-				obj.Streams[streamID] = tmp
+				*/
 			}
 		}
 	}
+
+	// obj.mutex.Lock()
+	// defer obj.mutex.Unlock()
+	// if tmp, ok := obj.Streams[streamID]; ok {
+	// 	if channelTmp, ok := tmp.Channels[channelID]; ok {
+	// 		if len(channelTmp.clients) > 0 {
+	// 			for _, i2 := range channelTmp.clients {
+	// 				if i2.mode == RTSP {
+	// 					continue
+	// 				}
+	// 				if len(i2.outgoingAVPacket) < 1000 {
+	// 					i2.outgoingAVPacket <- val
+	// 				} else if len(i2.signals) < 10 {
+	// 					//send stop signals to client
+	// 					i2.signals <- SignalStreamStop
+	// 					//No need close socket only send signal to reader / writer socket closed if client go to offline
+	// 					/*
+	// 						err := i2.socket.Close()
+	// 						if err != nil {
+	// 							log.WithFields(logrus.Fields{
+	// 								"module":  "storage",
+	// 								"stream":  streamID,
+	// 								"channel": channelID,
+	// 								"func":    "CastProxy",
+	// 								"call":    "Close",
+	// 							}).Errorln(err.Error())
+	// 						}
+	// 					*/
+	// 				}
+	// 			}
+	// 			channelTmp.ack = time.Now()
+	// 			tmp.Channels[channelID] = channelTmp
+	// 			obj.Streams[streamID] = tmp
+	// 		}
+	// 	}
+	// }
 }
 
 //StreamChannelCastProxy broadcast stream av.RTP
 func (obj *StorageST) StreamChannelCastProxy(streamID string, channelID string, val *[]byte) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[streamID]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			if len(channelTmp.clients) > 0 {
-				for _, i2 := range channelTmp.clients {
-					if i2.mode != RTSP {
-						continue
-					}
-					if len(i2.outgoingRTPPacket) < 1000 {
-						i2.outgoingRTPPacket <- val
-					} else if len(i2.signals) < 10 {
-						//send stop signals to client
-						i2.signals <- SignalStreamStop
-						err := i2.socket.Close()
-						if err != nil {
-							log.WithFields(logrus.Fields{
-								"module":  "storage",
-								"stream":  streamID,
-								"channel": channelID,
-								"func":    "CastProxy",
-								"call":    "Close",
-							}).Errorln(err.Error())
-						}
-					}
-				}
-				channelTmp.ack = time.Now()
-				tmp.Channels[channelID] = channelTmp
-				obj.Streams[streamID] = tmp
+	ch, err := Storage.StreamChannelGet(streamID, channelID)
+	if err != nil || ch == nil {
+		log.WithFields(logrus.Fields{
+			"module":  "StreamChannel",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamChannelCast",
+			"call":    "StreamChannelGet",
+		}).Errorf("Get channel fail!")
+		return
+	}
+
+	if len(ch.clients) > 0 {
+		for _, client := range ch.clients {
+			if client.mode != RTSP {
+				continue
 			}
+			if len(client.outgoingRTPPacket) < lenAvPacketQueue {
+				client.outgoingRTPPacket <- val
+			} else if len(client.signals) < lenClientSignalQueue {
+				//send stop signals to client
+				client.signals <- SignalStreamStop
+				err := client.socket.Close()
+				if err != nil {
+					log.WithFields(logrus.Fields{
+						"module":  "storage",
+						"stream":  streamID,
+						"channel": channelID,
+						"func":    "CastProxy",
+						"call":    "Close",
+					}).Errorln(err.Error())
+				}
+			}
+
 		}
 	}
+
+	// obj.mutex.Lock()
+	// defer obj.mutex.Unlock()
+	// if tmp, ok := obj.Streams[streamID]; ok {
+	// 	if channelTmp, ok := tmp.Channels[channelID]; ok {
+	// 		if len(channelTmp.clients) > 0 {
+	// 			for _, i2 := range channelTmp.clients {
+	// 				if i2.mode != RTSP {
+	// 					continue
+	// 				}
+	// 				if len(i2.outgoingRTPPacket) < 1000 {
+	// 					i2.outgoingRTPPacket <- val
+	// 				} else if len(i2.signals) < 10 {
+	// 					//send stop signals to client
+	// 					i2.signals <- SignalStreamStop
+	// 					err := i2.socket.Close()
+	// 					if err != nil {
+	// 						log.WithFields(logrus.Fields{
+	// 							"module":  "storage",
+	// 							"stream":  streamID,
+	// 							"channel": channelID,
+	// 							"func":    "CastProxy",
+	// 							"call":    "Close",
+	// 						}).Errorln(err.Error())
+	// 					}
+	// 				}
+	// 			}
+	// 			channelTmp.ack = time.Now()
+	// 			tmp.Channels[channelID] = channelTmp
+	// 			obj.Streams[streamID] = tmp
+	// 		}
+	// 	}
+	// }
 }
 
 //StreamChannelCodecsUpdate update stream codec storage
@@ -331,20 +413,20 @@ func (obj *StorageST) StreamChannelSDP(streamID string, channelID string) ([]byt
 }
 
 //StreamChannelAdd add stream
-func (obj *StorageST) StreamChannelAdd(uuid string, channelID string, val ChannelST) error {
+func (obj *StorageST) StreamChannelAdd(ctx context.Context, streamID string, channelID string, ch ChannelST) error {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if _, ok := obj.Streams[uuid]; !ok {
+	if _, ok := obj.Streams[streamID]; !ok {
 		return ErrorStreamNotFound
 	}
-	if _, ok := obj.Streams[uuid].Channels[channelID]; ok {
+	if _, ok := obj.Streams[streamID].Channels[channelID]; ok {
 		return ErrorStreamChannelAlreadyExists
 	}
-	val = obj.StreamChannelMake(val)
-	obj.Streams[uuid].Channels[channelID] = val
-	if !val.OnDemand {
-		val.runLock = true
-		go StreamServerRunStreamDo(uuid, channelID)
+	ch = obj.StreamChannelMake(ch)
+	obj.Streams[streamID].Channels[channelID] = ch
+	if !ch.OnDemand {
+		// ch.runLock = true
+		go StreamServerRunStreamDo(ctx, streamID, channelID)
 	}
 	err := obj.SaveConfig()
 	if err != nil {
@@ -354,19 +436,19 @@ func (obj *StorageST) StreamChannelAdd(uuid string, channelID string, val Channe
 }
 
 //StreamEdit edit stream
-func (obj *StorageST) StreamChannelEdit(uuid string, channelID string, val ChannelST) error {
+func (obj *StorageST) StreamChannelEdit(ctx context.Context, streamID string, channelID string, ch ChannelST) error {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
+	if tmp, ok := obj.Streams[streamID]; ok {
 		if currentChannel, ok := tmp.Channels[channelID]; ok {
-			if currentChannel.runLock {
+			if currentChannel.Status == ONLINE {
 				currentChannel.signals <- SignalStreamStop
 			}
-			val = obj.StreamChannelMake(val)
-			obj.Streams[uuid].Channels[channelID] = val
-			if !val.OnDemand {
-				val.runLock = true
-				go StreamServerRunStreamDo(uuid, channelID)
+			ch = obj.StreamChannelMake(ch)
+			obj.Streams[streamID].Channels[channelID] = ch
+			if !ch.OnDemand {
+				// ch.runLock = true
+				go StreamServerRunStreamDo(ctx, streamID, channelID)
 			}
 			err := obj.SaveConfig()
 			if err != nil {
@@ -379,15 +461,15 @@ func (obj *StorageST) StreamChannelEdit(uuid string, channelID string, val Chann
 }
 
 //StreamChannelDelete stream
-func (obj *StorageST) StreamChannelDelete(uuid string, channelID string) error {
+func (obj *StorageST) StreamChannelDelete(streamID string, channelID string) error {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
+	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			if channelTmp.runLock {
+			if channelTmp.Status == ONLINE {
 				channelTmp.signals <- SignalStreamStop
 			}
-			delete(obj.Streams[uuid].Channels, channelID)
+			delete(obj.Streams[streamID].Channels, channelID)
 			err := obj.SaveConfig()
 			if err != nil {
 				return err

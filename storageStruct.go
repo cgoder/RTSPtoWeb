@@ -77,17 +77,19 @@ type ChannelST struct {
 	Debug    bool `json:"debug,omitempty" groups:"api,config"`
 	// online/offline. means channel is streaming.
 	Status int `json:"status,omitempty" groups:"api"`
-	// stream is running
-	runLock bool
-	codecs  []av.CodecData
-	sdp     []byte
+	codecs []av.CodecData
+	sdp    []byte
 	// channel update. or codec update.
-	updated          chan bool
+	updated chan bool
+	// opreation signal.
 	signals          chan int
 	hlsSegmentBuffer map[int]Segment
 	hlsSegmentNumber int
 	clients          map[string]ClientST
-	ack              time.Time
+	// stream is running flag. unuseful???
+	runLock bool
+	// unuseful
+	ack time.Time
 }
 
 //ClientST client storage section

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	webrtc "github.com/deepch/vdk/format/webrtcv3"
@@ -21,7 +22,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
-	Storage.StreamChannelRun(c.Param("uuid"), c.Param("channel"))
+	Storage.StreamChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
 	codecs, err := Storage.StreamChannelCodecs(c.Param("uuid"), c.Param("channel"))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})

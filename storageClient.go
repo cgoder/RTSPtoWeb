@@ -6,6 +6,9 @@ import (
 	"github.com/deepch/vdk/av"
 )
 
+var lenAvPacketQueue int = 200
+var lenClientSignalQueue int = 100
+
 //ClientAdd Add New Client to Translations
 func (obj *StorageST) ClientAdd(streamID string, channelID string, mode int) (string, chan *av.Packet, chan *[]byte, error) {
 	obj.mutex.Lock()
@@ -19,14 +22,14 @@ func (obj *StorageST) ClientAdd(streamID string, channelID string, mode int) (st
 	if err != nil {
 		return "", nil, nil, err
 	}
-	chAV := make(chan *av.Packet, 2000)
-	chRTP := make(chan *[]byte, 2000)
+	chAV := make(chan *av.Packet, lenAvPacketQueue)
+	chRTP := make(chan *[]byte, lenAvPacketQueue)
 	channelTmp, ok := streamTmp.Channels[channelID]
 	if !ok {
 		return "", nil, nil, ErrorStreamNotFound
 	}
 
-	channelTmp.clients[cid] = ClientST{mode: mode, outgoingAVPacket: chAV, outgoingRTPPacket: chRTP, signals: make(chan int, 100)}
+	channelTmp.clients[cid] = ClientST{mode: mode, outgoingAVPacket: chAV, outgoingRTPPacket: chRTP, signals: make(chan int, lenClientSignalQueue)}
 	channelTmp.ack = time.Now()
 	streamTmp.Channels[channelID] = channelTmp
 	obj.Streams[streamID] = streamTmp

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -270,7 +271,7 @@ func RTSPServerClientHandle(conn net.Conn) {
 				}
 				return
 			}
-			Storage.StreamChannelRun(uuid, channel)
+			Storage.StreamChannelRun(context.TODO(), uuid, channel)
 			err = RTSPServerClientResponse(uuid, channel, conn, 200, map[string]string{"CSeq": strconv.Itoa(cSEQ), "Public": "DESCRIBE, SETUP, TEARDOWN, PLAY"})
 			if err != nil {
 				return

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -35,7 +37,7 @@ func HTTPAPIServerStreamChannelCodec(c *gin.Context) {
 
 //HTTPAPIServerStreamChannelInfo function return stream info struct
 func HTTPAPIServerStreamChannelInfo(c *gin.Context) {
-	info, err := Storage.StreamChannelInfo(c.Param("uuid"), c.Param("channel"))
+	info, err := Storage.StreamChannelGet(c.Param("uuid"), c.Param("channel"))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
@@ -82,7 +84,7 @@ func HTTPAPIServerStreamChannelEdit(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = Storage.StreamChannelEdit(c.Param("uuid"), c.Param("channel"), payload)
+	err = Storage.StreamChannelEdit(context.TODO(), c.Param("uuid"), c.Param("channel"), payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
@@ -129,7 +131,7 @@ func HTTPAPIServerStreamChannelAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = Storage.StreamChannelAdd(c.Param("uuid"), c.Param("channel"), payload)
+	err = Storage.StreamChannelAdd(context.TODO(), c.Param("uuid"), c.Param("channel"), payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{

@@ -13,8 +13,8 @@ import (
 const (
 	SignalStreamRestart = iota ///< Y   Restart
 	SignalStreamStop
-	SignalStreamClient
 	SignalStreamCodecUpdate
+	SignalStreamClient
 )
 
 //generateUUID function make random uuid for clients and stream
