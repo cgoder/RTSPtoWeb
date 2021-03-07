@@ -153,11 +153,11 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}
 
 	// make writeable chan for read av.pkt
-	// avChanW := make(chan *av.Packet, 10)
+	eofSignal := make(chan interface{}, 1)
 
 	// creat recv av.pkt goroutine
 
-	go wsCheck(ctx, streamID, channelID, ws)
+	go wsCheck(ctx, streamID, channelID, ws, eofSignal)
 
 	var videoStart bool
 	noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
@@ -166,16 +166,25 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		select {
 		case <-ctx.Done():
 			log.WithFields(logrus.Fields{
-				"module":  "core",
+				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
 				"func":    "StreamServerStreamChannel",
 				"call":    "context.Done",
 			}).Debugln(ctx.Err())
 			return
+		case <-eofSignal:
+			log.WithFields(logrus.Fields{
+				"module":  "http_mse",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerStreamChannel",
+				"call":    "got eof signal.",
+			}).Debugln("got eof signal.")
+			return
 		case <-noVideo.C:
 			log.WithFields(logrus.Fields{
-				"module":  "core",
+				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
 				"func":    "StreamServerStreamChannel",
@@ -254,12 +263,12 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 }
 
-func wsCheck(ctx context.Context, streamID string, channelID string, ws *websocket.Conn) {
+func wsCheck(ctx context.Context, streamID string, channelID string, ws *websocket.Conn, eofSignal chan interface{}) {
 	for {
 		select {
 		case <-ctx.Done():
 			log.WithFields(logrus.Fields{
-				"module":  "core",
+				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
 				"func":    "StreamServerStreamChannel",
@@ -287,6 +296,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 						"call":    "WS.Receive",
 					}).Errorln(err.Error())
 				}
+				eofSignal <- "wsEOF"
 				return
 			}
 
