@@ -11,8 +11,8 @@ import (
 
 //HTTPAPIServerStreamWebRTC stream video over WebRTC
 func HTTPAPIServerStreamWebRTC(c *gin.Context) {
-	streamID := ws.Request().FormValue("uuid")
-	channelID := ws.Request().FormValue("channel")
+	streamID := c.Param("uuid")
+	channelID := c.Param("channel")
 
 	if !Storage.StreamChannelExist(streamID, channelID) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
