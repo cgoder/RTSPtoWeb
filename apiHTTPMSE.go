@@ -50,7 +50,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "StreamChannelExist",
+			"call":    "StreamChannelGet",
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
