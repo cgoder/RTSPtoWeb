@@ -11,25 +11,28 @@ import (
 
 //HTTPAPIServerStreamWebRTC stream video over WebRTC
 func HTTPAPIServerStreamWebRTC(c *gin.Context) {
-	if !Storage.StreamChannelExist(c.Param("uuid"), c.Param("channel")) {
+	streamID := ws.Request().FormValue("uuid")
+	channelID := ws.Request().FormValue("channel")
+
+	if !Storage.StreamChannelExist(streamID, channelID) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamWebRTC",
 			"call":    "StreamChannelExist",
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
-	Storage.StreamChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
-	codecs, err := Storage.StreamChannelCodecs(c.Param("uuid"), c.Param("channel"))
+	Storage.StreamChannelRun(context.Background(), streamID, channelID)
+	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamWebRTC",
 			"call":    "StreamCodecs",
 		}).Errorln(err.Error())
@@ -41,8 +44,8 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamWebRTC",
 			"call":    "WriteHeader",
 		}).Errorln(err.Error())
@@ -53,27 +56,27 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamWebRTC",
 			"call":    "Write",
 		}).Errorln(err.Error())
 		return
 	}
 	go func() {
-		cid, ch, _, err := Storage.ClientAdd(c.Param("uuid"), c.Param("channel"), WEBRTC)
+		cid, ch, _, err := Storage.ClientAdd(streamID, channelID, WEBRTC)
 		if err != nil {
 			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(logrus.Fields{
 				"module":  "http_webrtc",
-				"stream":  c.Param("uuid"),
-				"channel": c.Param("channel"),
+				"stream":  streamID,
+				"channel": channelID,
 				"func":    "HTTPAPIServerStreamWebRTC",
 				"call":    "ClientAdd",
 			}).Errorln(err.Error())
 			return
 		}
-		defer Storage.ClientDelete(c.Param("uuid"), cid, c.Param("channel"))
+		defer Storage.ClientDelete(streamID, cid, channelID)
 		var videoStart bool
 		noVideo := time.NewTimer(10 * time.Second)
 		for {
@@ -82,8 +85,8 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 				c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNoVideo.Error()})
 				log.WithFields(logrus.Fields{
 					"module":  "http_webrtc",
-					"stream":  c.Param("uuid"),
-					"channel": c.Param("channel"),
+					"stream":  streamID,
+					"channel": channelID,
 					"func":    "HTTPAPIServerStreamWebRTC",
 					"call":    "ErrorStreamNoVideo",
 				}).Errorln(ErrorStreamNoVideo.Error())
@@ -100,8 +103,8 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 				if err != nil {
 					log.WithFields(logrus.Fields{
 						"module":  "http_webrtc",
-						"stream":  c.Param("uuid"),
-						"channel": c.Param("channel"),
+						"stream":  streamID,
+						"channel": channelID,
 						"func":    "HTTPAPIServerStreamWebRTC",
 						"call":    "WritePacket",
 					}).Errorln(err.Error())
