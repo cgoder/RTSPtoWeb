@@ -38,7 +38,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "recv avpkt",
-		}).Infoln("Cancelled av send goroutine.")
+		}).Infoln("Cancell av send goroutine.")
 	}()
 
 	// check stream status
@@ -169,7 +169,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerStreamChannel",
+				"func":    "HTTPAPIServerStreamMSE",
 				"call":    "context.Done",
 			}).Debugln(ctx.Err())
 			return
@@ -178,7 +178,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerStreamChannel",
+				"func":    "HTTPAPIServerStreamMSE",
 				"call":    "got eof signal.",
 			}).Debugln("got eof signal.")
 			return
@@ -187,7 +187,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerStreamChannel",
+				"func":    "HTTPAPIServerStreamMSE",
 				"call":    "ErrorStreamNoVideo",
 			}).Errorln(ErrorStreamNoVideo.Error())
 			return
@@ -271,7 +271,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerStreamChannel",
+				"func":    "wsCheck",
 				"call":    "context.Done",
 			}).Debugln(ctx.Err())
 			return
@@ -284,7 +284,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 						"module":  "http_mse",
 						"stream":  streamID,
 						"channel": channelID,
-						"func":    "HTTPAPIServerStreamMSE",
+						"func":    "wsCheck",
 						"call":    "WS.Receive",
 					}).Infoln("EXIT! WS got exit signal.")
 				} else {
@@ -292,7 +292,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 						"module":  "http_mse",
 						"stream":  streamID,
 						"channel": channelID,
-						"func":    "HTTPAPIServerStreamMSE",
+						"func":    "wsCheck",
 						"call":    "WS.Receive",
 					}).Errorln(err.Error())
 				}
@@ -304,7 +304,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "HTTPAPIServerStreamMSE",
+				"func":    "wsCheck",
 				"call":    "recv avpkt",
 			}).Debugln("WS recv msg: ", message)
 		}
