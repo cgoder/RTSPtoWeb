@@ -72,7 +72,7 @@ func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, cha
 			"channel": channelID,
 			"func":    "StreamChannelRun",
 			"call":    "StreamChannelGet",
-		}).Infoln("Exit", err)
+		}).Errorln("Exit", err)
 		return ErrorStreamChannelNotFound
 	}
 
@@ -83,8 +83,16 @@ func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, cha
 			if channelTmp.Status != ONLINE {
 				// go StreamServerRunStreamDo(ctx, streamID, channelID)
 				go StreamChannelRun(ctx, streamID, channelID)
-				return nil
+			} else {
+				log.WithFields(logrus.Fields{
+					"module":  "StreamChannel",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "StreamChannelRun",
+					"call":    "StreamChannelRun",
+				}).Debugln("stream is running...")
 			}
+			return nil
 		}
 	}
 	return nil
@@ -159,6 +167,14 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		return channelTmp.av.avCodecs, nil
 	}
 	// return nil, ErrorStreamChannelCodecNotFound
+
+	log.WithFields(logrus.Fields{
+		"module":  "http_mse",
+		"stream":  streamID,
+		"channel": channelID,
+		"func":    "StreamChannelCodecs",
+		"call":    "Get Stream codec ...",
+	}).Debugf("Get Stream codec ...")
 
 	t1 := time.Now().UTC()
 
