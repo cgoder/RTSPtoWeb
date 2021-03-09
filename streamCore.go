@@ -16,6 +16,7 @@ import (
 
 var (
 	timeoutClientCheck int = 10
+	timeoutAvReadCheck int = 10
 )
 
 func init() {
@@ -169,18 +170,32 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 				"call":    "ctx.Done()",
 			}).Debugln("Stream close by ctx.cannel. ", streamID, channelID)
 			return 0, nil
-		//Check stream have clients
+			//Check stream have clients
+			// case <-checkClients.C:
+			// 	if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
+			// 		log.WithFields(logrus.Fields{
+			// 			"module":  "core",
+			// 			"stream":  streamID,
+			// 			"channel": channelID,
+			// 			"func":    "StreamServerRunStreamRtsp",
+			// 			"call":    "ClientHas",
+			// 		}).Debugln("Stream close has no client. ", streamID, channelID)
+			// 		return 0, ErrorStreamNoClients
+			// 	}
+			// 	checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
 		case <-checkClients.C:
-			if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
+			cCnt := Storage.ClientCount(streamID, channelID)
+			if cCnt == 0 {
 				log.WithFields(logrus.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
-					"func":    "StreamServerRunStreamRtsp",
-					"call":    "ClientHas",
+					"func":    "writePktToClient",
+					"call":    "ClientCount",
 				}).Debugln("Stream close has no client. ", streamID, channelID)
 				return 0, ErrorStreamNoClients
 			}
+			log.Println("clients: ", cCnt)
 			checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
 		//Read core signals
 		case signals := <-channel.signals:
@@ -372,52 +387,3 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 		}
 	}
 }
-
-//StreamServerStreamChannel
-// func StreamServerStreamChannel(ctx context.Context, streamID string, channelID string, pktChanR <-chan *av.Packet, timeout int) {
-
-// 	var videoStart bool
-// 	noVideo := time.NewTimer(time.Duration(timeout) * time.Second)
-
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			log.WithFields(logrus.Fields{
-// 				"module":  "core",
-// 				"stream":  streamID,
-// 				"channel": channelID,
-// 				"func":    "StreamServerStreamChannel",
-// 				"call":    "context.Done",
-// 			}).Debugln(ctx.Err())
-// 			return
-// 		case <-noVideo.C:
-// 			log.WithFields(logrus.Fields{
-// 				"module":  "core",
-// 				"stream":  streamID,
-// 				"channel": channelID,
-// 				"func":    "StreamServerStreamChannel",
-// 				"call":    "ErrorStreamNoVideo",
-// 			}).Errorln(ErrorStreamNoVideo.Error())
-// 			return
-// 		case pck := <-pktChanR:
-// 			if pck.IsKeyFrame {
-// 				videoStart = true
-// 			}
-// 			noVideo.Reset(time.Duration(timeout) * time.Second)
-// 			if !videoStart {
-// 				continue
-// 			}
-
-// 			pktChanW <- pck
-
-// 			// log.WithFields(logrus.Fields{
-// 			// 	"module":  "core",
-// 			// 	"stream":  streamID,
-// 			// 	"channel": channelID,
-// 			// 	"func":    "StreamServerStreamChannel",
-// 			// 	"call":    "Write frame",
-// 			// }).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", pck.IsKeyFrame, len(pck.Data), pck.Time, pck.Duration)
-
-// 		}
-// 	}
-// }

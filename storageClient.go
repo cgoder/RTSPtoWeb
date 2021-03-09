@@ -29,7 +29,7 @@ func (obj *StorageST) ClientAdd(streamID string, channelID string, mode int) (st
 		return "", nil, nil, ErrorStreamNotFound
 	}
 
-	channelTmp.clients[cid] = ClientST{mode: mode, outgoingAVPacket: chAV, outgoingRTPPacket: chRTP, signals: make(chan int, lenClientSignalQueue)}
+	channelTmp.clients[cid] = &ClientST{mode: mode, outgoingAVPacket: chAV, outgoingRTPPacket: chRTP, signals: make(chan int, lenClientSignalQueue)}
 	channelTmp.ack = time.Now()
 	streamTmp.Channels[channelID] = channelTmp
 	obj.Streams[streamID] = streamTmp
@@ -77,4 +77,20 @@ func (obj *StorageST) ClientHas(streamID string, channelID string) bool {
 		return true
 	}
 	return true
+}
+
+//ClientHas check is client ext
+func (obj *StorageST) ClientCount(streamID string, channelID string) int {
+	obj.mutex.Lock()
+	defer obj.mutex.Unlock()
+	// streamTmp, ok := obj.Streams[streamID]
+	// if !ok {
+	// 	return 0
+	// }
+	// channelTmp, ok := streamTmp.Channels[channelID]
+	// if !ok {
+	// 	return 0
+	// }
+
+	return len(obj.Streams[streamID].Channels[channelID].clients)
 }

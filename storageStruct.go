@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/deepch/vdk/av"
+	"github.com/deepch/vdk/av/pubsub"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,19 +78,29 @@ type ChannelST struct {
 	Debug    bool `json:"debug,omitempty" groups:"api,config"`
 	// online/offline. means channel is streaming.
 	Status int `json:"status,omitempty" groups:"api"`
-	codecs []av.CodecData
-	sdp    []byte
+
+	// codecs []av.CodecData
+	// sdp []byte
+
 	// channel update. or codec update.
 	updated chan bool
+	cond    *sync.Cond
 	// opreation signal.
-	signals          chan int
+	signals chan int
+
+	// HLS
 	hlsSegmentBuffer map[int]Segment
 	hlsSegmentNumber int
-	clients          map[string]ClientST
-	// stream is running flag. unuseful???
-	runLock bool
+
+	// sub clients
+	clients map[string]*ClientST
+
+	// av
+	av AvST
+
 	// unuseful
-	ack time.Time
+	runLock bool
+	ack     time.Time
 }
 
 //ClientST client storage section
@@ -105,4 +116,12 @@ type ClientST struct {
 type Segment struct {
 	dur  time.Duration
 	data []*av.Packet
+}
+
+//AvST av
+type AvST struct {
+	avCodecs []av.CodecData
+	// add for multi clients
+	avQue *pubsub.Queue
+	sdp   []byte
 }

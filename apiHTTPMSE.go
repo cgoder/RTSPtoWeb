@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-var timeout_novideo time.Duration = 20
+var timeout_novideo time.Duration = 10
 var tiemout_ws time.Duration = 10
 
 //HTTPAPIServerStreamMSE func
@@ -38,7 +38,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "recv avpkt",
-		}).Infoln("Cancell av send goroutine.")
+		}).Infoln("Cancel av send goroutine.")
 	}()
 
 	// check stream status
@@ -100,7 +100,12 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(err.Error())
 		return
 	}
-	defer Storage.ClientDelete(streamID, cid, channelID)
+	log.Println("add client. clients: ", Storage.ClientCount(streamID, channelID))
+	// defer Storage.ClientDelete(streamID, cid, channelID)
+	defer func() {
+		Storage.ClientDelete(streamID, cid, channelID)
+		log.Println("del client. clients: ", Storage.ClientCount(streamID, channelID))
+	}()
 
 	// set websocket timeout for write av.Pkt
 	err = ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
@@ -156,9 +161,9 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	eofSignal := make(chan interface{}, 1)
 
 	// creat recv av.pkt goroutine
+	t1 := time.Now().UTC()
 
 	go wsCheck(ctx, streamID, channelID, ws, eofSignal)
-
 	var videoStart bool
 	noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
 
@@ -190,13 +195,15 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"func":    "HTTPAPIServerStreamMSE",
 				"call":    "ErrorStreamNoVideo",
 			}).Errorln(ErrorStreamNoVideo.Error())
+			log.Println("no video timer. ", time.Now().Sub(t1).String())
 			return
 		case avPkt := <-avChanR:
-			// log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
 			if avPkt.IsKeyFrame {
+				log.Println("MSE got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
 				videoStart = true
 			}
 			noVideo.Reset(time.Duration(timeout_novideo) * time.Second)
+			t1 = time.Now().UTC()
 
 			if !videoStart {
 				continue
@@ -272,7 +279,7 @@ func wsCheck(ctx context.Context, streamID string, channelID string, ws *websock
 				"stream":  streamID,
 				"channel": channelID,
 				"func":    "wsCheck",
-				"call":    "context.Done",
+				"call":    "ws exit by cancel.",
 			}).Debugln(ctx.Err())
 			return
 		default:

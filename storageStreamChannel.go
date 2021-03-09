@@ -2,24 +2,33 @@ package main
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/deepch/vdk/av"
+	"github.com/deepch/vdk/av/pubsub"
 	"github.com/sirupsen/logrus"
 )
 
 func StreamChannelNew(val ChannelST) ChannelST {
 	tmpCh := val
 	//make client's
-	tmpCh.clients = make(map[string]ClientST)
+	tmpCh.clients = make(map[string]*ClientST)
 	//make last ack
-	tmpCh.ack = time.Now().Add(-255 * time.Hour)
+	// tmpCh.ack = time.Now().Add(-255 * time.Hour)
 	//make hls buffer
 	tmpCh.hlsSegmentBuffer = make(map[int]Segment)
 	//make signals buffer chain
 	tmpCh.signals = make(chan int, 100)
 	// make chan for av.Codec update
 	tmpCh.updated = make(chan bool)
+	tmpCh.cond = sync.NewCond(&sync.Mutex{})
+
+	var av AvST
+	av.avQue = pubsub.NewQueue()
+	av.avQue.SetMaxGopCount(1)
+	tmpCh.av = av
+
 	return tmpCh
 }
 
@@ -72,9 +81,8 @@ func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, cha
 	if streamTmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
 			if channelTmp.Status != ONLINE {
-				// streamTmp.Channels[channelID] = channelTmp
-				// obj.Streams[streamID] = streamTmp
-				go StreamServerRunStreamDo(ctx, streamID, channelID)
+				// go StreamServerRunStreamDo(ctx, streamID, channelID)
+				go StreamChannelRun(ctx, streamID, channelID)
 				return nil
 			}
 		}
@@ -140,7 +148,7 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		return nil, ErrorStreamChannelNotFound
 	}
 
-	if channelTmp.Status == ONLINE && channelTmp.codecs != nil {
+	if channelTmp.Status == ONLINE && channelTmp.av.avCodecs != nil {
 		// log.WithFields(logrus.Fields{
 		// 	"module":  "StreamChannel",
 		// 	"stream":  streamID,
@@ -148,62 +156,68 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 		// 	"func":    "StreamChannelCodecs",
 		// 	"call":    "chan.updated",
 		// }).Debugln("Got old codec!")
-		return channelTmp.codecs, nil
+		return channelTmp.av.avCodecs, nil
 	}
+	// return nil, ErrorStreamChannelCodecNotFound
 
 	t1 := time.Now().UTC()
 
-	timer := time.NewTimer(20 * time.Second)
-	for {
-		select {
-		case <-timer.C:
-			log.WithFields(logrus.Fields{
-				"module":  "StreamChannel",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamChannelCodecs",
-				"call":    "chan.updated",
-			}).Errorln("Get codec timeout!")
-			return nil, ErrorStreamChannelCodecNotFound
-		case <-channelTmp.updated:
-			obj.mutex.RLock()
-			channelTmp, ok := obj.Streams[streamID].Channels[channelID]
-			obj.mutex.RUnlock()
-			if !ok {
-				return nil, ErrorStreamChannelNotFound
-			}
+	channelTmp.cond.L.Lock()
+	defer channelTmp.cond.L.Unlock()
+	channelTmp.cond.Wait()
 
-			t2 := time.Now().UTC().Sub(t1)
-			log.WithFields(logrus.Fields{
-				"module":  "http_mse",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamChannelCodecs",
-				"call":    "chan.updated",
-			}).Debugf("Got Stream codec update! cost:%v", t2.String())
-
-			return channelTmp.codecs, nil
-		}
+	obj.mutex.RLock()
+	chTmp, ok := obj.Streams[streamID].Channels[channelID]
+	obj.mutex.RUnlock()
+	if !ok {
+		return nil, ErrorStreamChannelNotFound
 	}
 
-	// for i := 0; i < 100; i++ {
-	// 	obj.mutex.RLock()
-	// 	tmp, ok := obj.Streams[streamID]
-	// 	obj.mutex.RUnlock()
-	// 	if !ok {
-	// 		return nil, ErrorStreamNotFound
-	// 	}
-	// 	channelTmp, ok := tmp.Channels[channelID]
-	// 	if !ok {
-	// 		return nil, ErrorStreamChannelNotFound
-	// 	}
+	t2 := time.Now().UTC().Sub(t1)
+	log.WithFields(logrus.Fields{
+		"module":  "http_mse",
+		"stream":  streamID,
+		"channel": channelID,
+		"func":    "StreamChannelCodecs",
+		"call":    "chan.updated",
+	}).Debugf("Got Stream codec update! cost:%v", t2.String())
 
-	// 	if channelTmp.codecs != nil {
-	// 		return channelTmp.codecs, nil
+	return chTmp.av.avCodecs, nil
+
+	// t1 := time.Now().UTC()
+	// timer := time.NewTimer(20 * time.Second)
+	// for {
+	// 	select {
+	// 	case <-timer.C:
+	// 		log.WithFields(logrus.Fields{
+	// 			"module":  "StreamChannel",
+	// 			"stream":  streamID,
+	// 			"channel": channelID,
+	// 			"func":    "StreamChannelCodecs",
+	// 			"call":    "chan.updated",
+	// 		}).Errorln("Get codec timeout!")
+	// 		return nil, ErrorStreamChannelCodecNotFound
+	// 	case <-channelTmp.updated:
+	// 		obj.mutex.RLock()
+	// 		channelTmp, ok := obj.Streams[streamID].Channels[channelID]
+	// 		obj.mutex.RUnlock()
+	// 		if !ok {
+	// 			return nil, ErrorStreamChannelNotFound
+	// 		}
+
+	// 		t2 := time.Now().UTC().Sub(t1)
+	// 		log.WithFields(logrus.Fields{
+	// 			"module":  "http_mse",
+	// 			"stream":  streamID,
+	// 			"channel": channelID,
+	// 			"func":    "StreamChannelCodecs",
+	// 			"call":    "chan.updated",
+	// 		}).Debugf("Got Stream codec update! cost:%v", t2.String())
+
+	// 		return channelTmp.av.avCodecs, nil
 	// 	}
-	// 	time.Sleep(50 * time.Millisecond)
 	// }
-	// return nil, ErrorStreamChannelCodecNotFound
+
 }
 
 //StreamChannelStatus change stream status
@@ -380,8 +394,8 @@ func (obj *StorageST) StreamChannelCodecsUpdate(streamID string, channelID strin
 	defer obj.mutex.Unlock()
 	if tmp, ok := obj.Streams[streamID]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			channelTmp.codecs = val
-			channelTmp.sdp = sdp
+			channelTmp.av.avCodecs = val
+			channelTmp.av.sdp = sdp
 			tmp.Channels[channelID] = channelTmp
 			obj.Streams[streamID] = tmp
 		}
@@ -403,8 +417,8 @@ func (obj *StorageST) StreamChannelSDP(streamID string, channelID string) ([]byt
 			return nil, ErrorStreamChannelNotFound
 		}
 
-		if len(channelTmp.sdp) > 0 {
-			return channelTmp.sdp, nil
+		if len(channelTmp.av.sdp) > 0 {
+			return channelTmp.av.sdp, nil
 		}
 		// why sleep?
 		time.Sleep(50 * time.Millisecond)

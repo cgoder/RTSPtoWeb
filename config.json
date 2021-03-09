@@ -24,7 +24,7 @@
       "channels": {
         "0": {
           "on_demand": true,
-          "url": "rtmp://localhost:1935/publish/foobar"
+          "url": "rtmp://localhost:1935/stream/test"
         }
       },
       "name": "local_rtmp"
@@ -41,10 +41,6 @@
     "t1": {
       "channels": {
         "0": {
-          "on_demand": true,
-          "url": "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov"
-        },
-        "1": {
           "on_demand": true,
           "url": "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov"
         }
