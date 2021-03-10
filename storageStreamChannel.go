@@ -104,7 +104,7 @@ func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, cha
 		if channelTmp, ok := streamTmp.Channels[channelID]; ok {
 			if channelTmp.Status != ONLINE {
 				// go StreamServerRunStreamDo(ctx, streamID, channelID)
-				go StreamChannelRun(ctx, streamID, channelID)
+				go StreamChannelRun(context.Background(), streamID, channelID)
 			} else {
 				log.WithFields(logrus.Fields{
 					"module":  "StreamChannel",
