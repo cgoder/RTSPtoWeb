@@ -68,14 +68,13 @@ func StreamChannelRun(ctx context.Context, streamID string, channelID string) er
 
 	// real stream run
 	go readPktByProtocol(ctx, streamID, channelID, channel)
-	go writePktToClient(ctx, streamID, channelID, channel)
 
 	return nil
 
 }
 
-//readWritePkt write av.Pkt for all clients. which from channel.av.queue.
-func writePktToClient(ctx context.Context, streamID string, channelID string, channel *ChannelST) error {
+//writePktToQueue write av.Pkt for all clients. which from channel.av.queue.
+func writePktToQueue(ctx context.Context, streamID string, channelID string, channel *ChannelST) error {
 	var videoStart bool
 	clients := channel.clients
 
@@ -91,7 +90,7 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "writePktToClient",
+				"func":    "writePktToQueue",
 				"call":    "ctx.Done()",
 			}).Debugln("End write avPkt by cancel. ")
 			return nil
@@ -103,7 +102,7 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 		// 			"module":  "core",
 		// 			"stream":  streamID,
 		// 			"channel": channelID,
-		// 			"func":    "writePktToClient",
+		// 			"func":    "writePktToQueue",
 		// 			"call":    "ClientCount",
 		// 		}).Debugln("Stream close has no client. ")
 		// 		return ErrorStreamNoClients
@@ -131,16 +130,16 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
-					"func":    "StreamServerRunStreamRtmp",
+					"func":    "writePktToQueue",
 					"call":    "ReadPacket",
-				}).Errorln("ReadPacket error ", err)
+				}).Errorln("Queue ReadPacket error ", err)
 				continue
 			}
 
 			// checkAvRead.Reset(time.Duration(timeoutAvReadCheck) * time.Second)
 
 			if packet.IsKeyFrame {
-				log.Println("Write keyframe to client. ", packet.Idx, len(packet.Data))
+				// log.Println("Queue Write keyframe to clients. ", packet.Time, len(packet.Data))
 				videoStart = true
 			}
 
@@ -208,7 +207,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
+				"func":    "streamRtmp",
 				"call":    "rtmp.Dial",
 			}).Errorln("RTMP Dial ---> ", JsonFormat(RTMPConn.URL), err)
 			return err
@@ -217,7 +216,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
-			"func":    "StreamServerRunStreamRtmp",
+			"func":    "streamRtmp",
 			"call":    "Start",
 		}).Debugln("RTMP Conn---> ", JsonFormat(RTMPConn.URL))
 
@@ -229,7 +228,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
+				"func":    "streamRtmp",
 				"call":    "RTMPConn.Streams",
 			}).Errorln("RTMP get stream codec err. ", err)
 			return err
@@ -245,7 +244,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
+				"func":    "streamRtmp",
 				"call":    "RTMPConn.Streams",
 			}).Debugln("rtmp get stream codec DONE! time: ", time.Now().Local().UTC().Sub(t1).String())
 		} else {
@@ -253,7 +252,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
+				"func":    "streamRtmp",
 				"call":    "RTMPConn.Streams",
 			}).Errorln("rtmp get stream codec fail! time: ", time.Now().Local().UTC().Sub(t1).String())
 			return ErrorStreamChannelCodecNotFound
@@ -263,7 +262,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
-			"func":    "StreamServerRunStreamRtmp",
+			"func":    "streamRtmp",
 			"call":    "Start",
 		}).Debugln("Success connection RTMP")
 
@@ -278,8 +277,14 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 		}).Errorln("RTMP connect fail. ---> ", JsonFormat(channel.URL), err)
 		return 0, err
 	}
+
+	ctx4Write, cancel4Write := context.WithCancel(context.Background())
+	go writePktToQueue(ctx4Write, streamID, channelID, channel)
+
 	// release hls cache
 	defer func() {
+		//cancel writePktToQueue goroutine.
+		cancel4Write()
 		RTMPConn.Close()
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
 		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
@@ -289,18 +294,18 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
-	var pktCnt int
+	// var pktCnt int
 	for {
 		select {
-		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
-				"module":  "core",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
-				"call":    "ctx.Done()",
-			}).Debugln("Stream close by cancel. ")
-			return 0, nil
+		// case <-ctx.Done():
+		// 	log.WithFields(logrus.Fields{
+		// 		"module":  "core",
+		// 		"stream":  streamID,
+		// 		"channel": channelID,
+		// 		"func":    "streamRtmp",
+		// 		"call":    "ctx.Done()",
+		// 	}).Debugln("Stream close by cancel. ")
+		// 	return 0, nil
 		//Check stream have clients
 		case <-checkClients.C:
 			cCnt := Storage.ClientCount(streamID, channelID)
@@ -309,14 +314,25 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
-					"func":    "StreamServerRunStreamRtmp",
+					"func":    "streamRtmp",
 					"call":    "ClientCount",
 				}).Debugln("Stream close has no client. ")
+
 				return 0, ErrorStreamNoClients
 			}
+
 			log.Println("clients: ", cCnt)
+			if len(checkClients.C) > 0 {
+				<-checkClients.C
+			}
 			if b := checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second); !b {
-				log.Println("checkClients timer reset err")
+				log.WithFields(logrus.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "streamRtmp",
+					"call":    "timer.Reset",
+				}).Errorln("checkClients timer reset err")
 			}
 		//Read core signals
 		case signals := <-channel.signals:
@@ -339,16 +355,16 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
-					"func":    "StreamServerRunStreamRtmp",
+					"func":    "streamRtmp",
 					"call":    "ReadPacket",
 				}).Errorln("ReadPacket error ", err)
 				continue
 			}
 
-			pktCnt++
-			// if avPkt.IsKeyFrame {
-			// 	log.Println("Write keyframe to queue. ", pktCnt, avPkt.Idx, len(avPkt.Data))
-			// }
+			// pktCnt++
+			if avPkt.IsKeyFrame {
+				log.Println("Write keyframe to queue. ", avPkt.Time, len(avPkt.Data))
+			}
 
 			// write av.Pkt to avQue
 			channel.av.avQue.WritePacket(avPkt)
@@ -427,8 +443,12 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		"call":    "StreamChannelStatus",
 	}).Debugln("Success connection RTSP")
 
+	ctx4Write, cancel4Write := context.WithCancel(context.Background())
+	go writePktToQueue(ctx4Write, streamID, channelID, channel)
+
 	// release hls cache
 	defer func() {
+		cancel4Write()
 		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
@@ -439,15 +459,15 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 
 	for {
 		select {
-		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
-				"module":  "core",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "streamRtsp",
-				"call":    "ctx.Done()",
-			}).Debugln("Stream close by cancel. ")
-			return 0, nil
+		// case <-ctx.Done():
+		// 	log.WithFields(logrus.Fields{
+		// 		"module":  "core",
+		// 		"stream":  streamID,
+		// 		"channel": channelID,
+		// 		"func":    "streamRtsp",
+		// 		"call":    "ctx.Done()",
+		// 	}).Debugln("Stream close by cancel. ")
+		// 	return 0, nil
 		//Read core signals
 		case signals := <-channel.signals:
 			switch signals {
@@ -518,9 +538,14 @@ func writePktToAllClient(clients map[string]*ClientST, avPkt *av.Packet) {
 				if len(client.outgoingAVPacket) < lenAvPacketQueue {
 					// log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)
 					client.outgoingAVPacket <- avPkt
-				} else if len(client.signals) < lenClientSignalQueue {
-					//send stop signals to client
-					client.signals <- SignalStreamStop
+				} else {
+					log.WithFields(logrus.Fields{
+						"module": "core",
+						// "stream":  streamID,
+						// "channel": channelID,
+						"func": "writePktToAllClient",
+						"call": "client.outgoingAVPacket",
+					}).Errorln("client av chan full. ", len(client.outgoingAVPacket))
 				}
 			}
 		}
