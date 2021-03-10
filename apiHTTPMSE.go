@@ -161,7 +161,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	eofSignal := make(chan interface{}, 1)
 
 	// creat recv av.pkt goroutine
-	t1 := time.Now().UTC()
+	// t1 := time.Now().UTC()
 
 	go wsCheck(ctx, streamID, channelID, ws, eofSignal)
 	var videoStart bool
@@ -187,23 +187,26 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				"call":    "got eof signal.",
 			}).Debugln("got eof signal.")
 			return
-		case <-noVideo.C:
-			log.WithFields(logrus.Fields{
-				"module":  "http_mse",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "HTTPAPIServerStreamMSE",
-				"call":    "ErrorStreamNoVideo",
-			}).Errorln(ErrorStreamNoVideo.Error())
-			log.Println("no video timer. ", time.Now().Sub(t1).String())
-			return
+		// case <-noVideo.C:
+		// 	log.WithFields(logrus.Fields{
+		// 		"module":  "http_mse",
+		// 		"stream":  streamID,
+		// 		"channel": channelID,
+		// 		"func":    "HTTPAPIServerStreamMSE",
+		// 		"call":    "ErrorStreamNoVideo",
+		// 	}).Errorln(ErrorStreamNoVideo.Error())
+		// 	log.Println("no video timer. ", time.Now().Sub(t1).String())
+		// 	return
 		case avPkt := <-avChanR:
+			if b := noVideo.Reset(time.Duration(timeout_novideo) * time.Second); !b {
+				log.Println("timer reset err")
+			}
+			// t1 = time.Now().UTC()
+
 			if avPkt.IsKeyFrame {
-				log.Println("MSE got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
+				log.Println("MSE got avPkt. ", avPkt.Idx, avPkt.IsKeyFrame, len(avPkt.Data))
 				videoStart = true
 			}
-			noVideo.Reset(time.Duration(timeout_novideo) * time.Second)
-			t1 = time.Now().UTC()
 
 			if !videoStart {
 				continue
@@ -221,7 +224,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				return
 			}
 			if ready {
-				if ch.Debug && avPkt.IsKeyFrame {
+				if true && avPkt.IsKeyFrame {
 					log.WithFields(logrus.Fields{
 						"module":  "http_mse",
 						"stream":  streamID,

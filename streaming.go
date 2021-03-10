@@ -82,9 +82,7 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 	// get av.Pkt from queue.
 	cursor := channel.av.avQue.Latest()
 
-	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
-	checkAvRead := time.NewTimer(time.Duration(timeoutAvReadCheck) * time.Second)
-	var pktCnt int
+	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 
 	for {
 		select {
@@ -97,49 +95,37 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 				"call":    "ctx.Done()",
 			}).Debugln("End write avPkt by cancel. ")
 			return nil
-		//Check stream have clients
-		case <-checkClients.C:
-			cCnt := Storage.ClientCount(streamID, channelID)
-			if cCnt == 0 {
-				log.WithFields(logrus.Fields{
-					"module":  "core",
-					"stream":  streamID,
-					"channel": channelID,
-					"func":    "writePktToClient",
-					"call":    "ClientCount",
-				}).Debugln("Stream close has no client. ")
-				return ErrorStreamNoClients
-			}
-			log.Println("clients: ", cCnt)
-			checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
-			//Read core signals
-			// case signals := <-channel.signals:
-			// 	switch signals {
-			// 	case SignalStreamStop:
-			// 		return ErrorStreamStopCoreSignal
-			// 	case SignalStreamRestart:
-			// 		//TODO:
-			// 		// return 0, ErrorStreamRestart
-			// 	case SignalStreamCodecUpdate:
-			// 		//TODO:
-			// 		// return 0, ErrorStreamChannelCodecUpdate
-			// 	}
-			//Read av.Pkt,and proxy for all clients.
-			// TODO: av.Pkt be save file here.
-		case <-checkAvRead.C:
-			log.WithFields(logrus.Fields{
-				"module":  "core",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
-				"call":    "checkAvRead",
-			}).Errorln(ErrorStreamNoVideo.Error())
-			return ErrorStreamNoVideo
+		// //Check stream have clients
+		// case <-checkClients.C:
+		// 	cCnt := Storage.ClientCount(streamID, channelID)
+		// 	if cCnt == 0 {
+		// 		log.WithFields(logrus.Fields{
+		// 			"module":  "core",
+		// 			"stream":  streamID,
+		// 			"channel": channelID,
+		// 			"func":    "writePktToClient",
+		// 			"call":    "ClientCount",
+		// 		}).Debugln("Stream close has no client. ")
+		// 		return ErrorStreamNoClients
+		// 	}
+		// 	log.Println("clients: ", cCnt)
+		// 	checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
+		//Read core signals
+		// case signals := <-channel.signals:
+		// 	switch signals {
+		// 	case SignalStreamStop:
+		// 		return ErrorStreamStopCoreSignal
+		// 	case SignalStreamRestart:
+		// 		//TODO:
+		// 		// return 0, ErrorStreamRestart
+		// 	case SignalStreamCodecUpdate:
+		// 		//TODO:
+		// 		// return 0, ErrorStreamChannelCodecUpdate
+		// 	}
+		//Read av.Pkt,and proxy for all clients.
+		// TODO: av.Pkt be save file here.
 		default:
 			packet, err := cursor.ReadPacket()
-			if packet.Idx/10 == 0 {
-				log.Println("Read frame from queue. ", packet.Idx, packet.IsKeyFrame, len(packet.Data))
-			}
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "core",
@@ -150,8 +136,8 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 				}).Errorln("ReadPacket error ", err)
 				continue
 			}
-			checkAvRead.Reset(time.Duration(timeoutAvReadCheck) * time.Second)
-			pktCnt++
+
+			// checkAvRead.Reset(time.Duration(timeoutAvReadCheck) * time.Second)
 
 			if packet.IsKeyFrame {
 				log.Println("Write keyframe to client. ", packet.Idx, len(packet.Data))
@@ -161,10 +147,7 @@ func writePktToClient(ctx context.Context, streamID string, channelID string, ch
 			if !videoStart {
 				continue
 			}
-			// if pktCnt/100 == 0 {
-			// 	log.Println("Write frame to clients. ", pktCnt, packet.IsKeyFrame, len(packet.Data))
-			// }
-			// send avPkt to clients
+
 			writePktToAllClient(clients, &packet)
 
 		}
@@ -212,86 +195,98 @@ func readPktByProtocol(ctx context.Context, streamID string, channelID string, c
 
 //streamRtmp read av.Pkt from rtmp stream to av.avQue.
 func streamRtmp(ctx context.Context, streamID string, channelID string, channel *ChannelST) (int, error) {
-	// rtmp client dial
-	RTMPConn, err := rtmp.Dial(channel.URL)
-	defer RTMPConn.Close()
-	if err != nil {
+	var RTMPConn *rtmp.Conn
+	var err error
+
+	// rtmp connect.
+	if err := func() error {
+		// rtmp client dial
+		RTMPConn, err = rtmp.Dial(channel.URL)
+
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerRunStreamRtmp",
+				"call":    "rtmp.Dial",
+			}).Errorln("RTMP Dial ---> ", JsonFormat(RTMPConn.URL), err)
+			return err
+		}
 		log.WithFields(logrus.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "StreamServerRunStreamRtmp",
-			"call":    "rtmp.Dial",
-		}).Errorln("RTMP Dial ---> ", JsonFormat(RTMPConn.URL), err)
+			"call":    "Start",
+		}).Debugln("RTMP Conn---> ", JsonFormat(RTMPConn.URL))
+
+		// get av.Codec
+		t1 := time.Now().Local().UTC()
+		streams, err := RTMPConn.Streams()
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerRunStreamRtmp",
+				"call":    "RTMPConn.Streams",
+			}).Errorln("RTMP get stream codec err. ", err)
+			return err
+		}
+
+		// update av.Codec
+		if len(streams) > 0 {
+			Storage.StreamChannelCodecsUpdate(streamID, channelID, streams, nil)
+			// channel.updated <- true
+			channel.cond.Broadcast()
+
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerRunStreamRtmp",
+				"call":    "RTMPConn.Streams",
+			}).Debugln("rtmp get stream codec DONE! time: ", time.Now().Local().UTC().Sub(t1).String())
+		} else {
+			log.WithFields(logrus.Fields{
+				"module":  "core",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "StreamServerRunStreamRtmp",
+				"call":    "RTMPConn.Streams",
+			}).Errorln("rtmp get stream codec fail! time: ", time.Now().Local().UTC().Sub(t1).String())
+			return ErrorStreamChannelCodecNotFound
+		}
+
+		log.WithFields(logrus.Fields{
+			"module":  "core",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "StreamServerRunStreamRtmp",
+			"call":    "Start",
+		}).Debugln("Success connection RTMP")
+
+		return nil
+	}(); err != nil {
+		log.WithFields(logrus.Fields{
+			"module":  "core",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "streamRtmp",
+			"call":    "rtmp connect",
+		}).Errorln("RTMP connect fail. ---> ", JsonFormat(channel.URL), err)
 		return 0, err
 	}
-	log.WithFields(logrus.Fields{
-		"module":  "core",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "StreamServerRunStreamRtmp",
-		"call":    "Start",
-	}).Debugln("RTMP Conn---> ", JsonFormat(RTMPConn.URL))
-
-	// if err := RTMPConn.Prepare(); err != nil {
-	// 	return 0, err
-	// }
-
-	t1 := time.Now().Local().UTC()
-	streams, err := RTMPConn.Streams()
-	if err != nil {
-		log.WithFields(logrus.Fields{
-			"module":  "core",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "StreamServerRunStreamRtmp",
-			"call":    "RTMPConn.Streams",
-		}).Errorln("RTMP get stream codec err. ", err)
-		return 0, err
-	}
-
-	if len(streams) > 0 {
-		Storage.StreamChannelCodecsUpdate(streamID, channelID, streams, nil)
-		// channel.updated <- true
-		channel.cond.Broadcast()
-
-		log.WithFields(logrus.Fields{
-			"module":  "core",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "StreamServerRunStreamRtmp",
-			"call":    "RTMPConn.Streams",
-		}).Debugln("rtmp get stream codec DONE! time: ", time.Now().Local().UTC().Sub(t1).String())
-	} else {
-		log.WithFields(logrus.Fields{
-			"module":  "core",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "StreamServerRunStreamRtmp",
-			"call":    "RTMPConn.Streams",
-		}).Errorln("rtmp get stream codec fail! time: ", time.Now().Local().UTC().Sub(t1).String())
-		return 0, ErrorStreamChannelCodecNotFound
-	}
-	defer func() {
-		var tmpCode []av.CodecData
-		Storage.StreamChannelCodecsUpdate(streamID, channelID, tmpCode, nil)
-	}()
-
-	log.WithFields(logrus.Fields{
-		"module":  "core",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "StreamServerRunStreamRtmp",
-		"call":    "Start",
-	}).Debugln("Success connection RTMP")
-
 	// release hls cache
 	defer func() {
+		RTMPConn.Close()
+		Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
 		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
-	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 	var pktCnt int
@@ -307,18 +302,22 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			}).Debugln("Stream close by cancel. ")
 			return 0, nil
 		//Check stream have clients
-		// case <-checkClients.C:
-		// 	if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
-		// 		log.WithFields(logrus.Fields{
-		// 			"module":  "core",
-		// 			"stream":  streamID,
-		// 			"channel": channelID,
-		// 			"func":    "StreamServerRunStreamRtmp",
-		// 			"call":    "ClientHas",
-		// 		}).Debugln("Stream close has no client. ", streamID, channelID)
-		// 		return 0, ErrorStreamNoClients
-		// 	}
-		// 	checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
+		case <-checkClients.C:
+			cCnt := Storage.ClientCount(streamID, channelID)
+			if cCnt == 0 {
+				log.WithFields(logrus.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "StreamServerRunStreamRtmp",
+					"call":    "ClientCount",
+				}).Debugln("Stream close has no client. ")
+				return 0, ErrorStreamNoClients
+			}
+			log.Println("clients: ", cCnt)
+			if b := checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second); !b {
+				log.Println("checkClients timer reset err")
+			}
 		//Read core signals
 		case signals := <-channel.signals:
 			switch signals {
@@ -334,7 +333,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 		//Read av.Pkt,and proxy for all clients.
 		// TODO: av.Pkt be save file here.
 		default:
-			pktRTMP, err := RTMPConn.ReadPacket()
+			avPkt, err := RTMPConn.ReadPacket()
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "core",
@@ -347,25 +346,21 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			}
 
 			pktCnt++
-			// if pktRTMP.IsKeyFrame && pktRTMP.Idx/10 == 0 {
-			// 	log.Println("Write frame to queue. ", pktCnt, pktRTMP.Idx, len(pktRTMP.Data))
+			// if avPkt.IsKeyFrame {
+			// 	log.Println("Write keyframe to queue. ", pktCnt, avPkt.Idx, len(avPkt.Data))
 			// }
 
 			// write av.Pkt to avQue
-			channel.av.avQue.WritePacket(pktRTMP)
-			// send av.pkt
-			// Storage.StreamChannelCast(streamID, channelID, &pktRTMP)
-			// send av.RTP
-			// Storage.StreamChannelCastProxy(streamID, channelID, &pktRTMP.Data)
+			channel.av.avQue.WritePacket(avPkt)
 
-			if pktRTMP.IsKeyFrame {
+			if avPkt.IsKeyFrame {
 				if preKeyTS > 0 {
-					Storage.StreamHLSAdd(streamID, channelID, Seq, pktRTMP.Time-preKeyTS)
+					Storage.StreamHLSAdd(streamID, channelID, Seq, avPkt.Time-preKeyTS)
 					Seq = []*av.Packet{}
 				}
-				preKeyTS = pktRTMP.Time
+				preKeyTS = avPkt.Time
 			}
-			Seq = append(Seq, &pktRTMP)
+			Seq = append(Seq, &avPkt)
 
 		}
 	}
@@ -521,7 +516,7 @@ func writePktToAllClient(clients map[string]*ClientST, avPkt *av.Packet) {
 				}
 			} else {
 				if len(client.outgoingAVPacket) < lenAvPacketQueue {
-					log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)
+					// log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)
 					client.outgoingAVPacket <- avPkt
 				} else if len(client.signals) < lenClientSignalQueue {
 					//send stop signals to client

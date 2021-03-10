@@ -26,10 +26,32 @@ func StreamChannelNew(val ChannelST) ChannelST {
 
 	var av AvST
 	av.avQue = pubsub.NewQueue()
-	av.avQue.SetMaxGopCount(1)
 	tmpCh.av = av
 
 	return tmpCh
+}
+
+//StreamChannelRelease renew channel for GC.
+func StreamChannelRelease(ch *ChannelST) {
+	var tmpCh ChannelST
+	//make client's
+	tmpCh.clients = make(map[string]*ClientST)
+	//make last ack
+	// tmpCh.ack = time.Now().Add(-255 * time.Hour)
+	//make hls buffer
+	tmpCh.hlsSegmentBuffer = make(map[int]Segment)
+	//make signals buffer chain
+	tmpCh.signals = make(chan int, 100)
+	// make chan for av.Codec update
+	tmpCh.updated = make(chan bool)
+	tmpCh.cond = sync.NewCond(&sync.Mutex{})
+
+	var av AvST
+	tmpCh.av = av
+
+	ch.av.avQue.Close()
+
+	ch = &tmpCh
 }
 
 //StreamChannelMake check stream exist

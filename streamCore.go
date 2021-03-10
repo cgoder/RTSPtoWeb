@@ -16,7 +16,7 @@ import (
 
 var (
 	timeoutClientCheck int = 10
-	timeoutAvReadCheck int = 10
+	timeoutAvReadCheck int = 20
 )
 
 func init() {
