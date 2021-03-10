@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +12,11 @@ import (
 )
 
 func main() {
+
+	go func() {
+		http.ListenAndServe("0.0.0.0:6060", nil)
+	}()
+
 	log.WithFields(logrus.Fields{
 		"module": "main",
 		"func":   "main",
