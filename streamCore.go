@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	timeoutClientCheck int = 10
+	timeoutClientCheck int = 60
 	timeoutAvReadCheck int = 20
 )
 
@@ -161,28 +161,28 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 
 	for {
 		select {
-		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
-				"module":  "core",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamServerRunStreamRtsp",
-				"call":    "ctx.Done()",
-			}).Debugln("Stream close by ctx.cannel. ", streamID, channelID)
-			return 0, nil
-			//Check stream have clients
-			// case <-checkClients.C:
-			// 	if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
-			// 		log.WithFields(logrus.Fields{
-			// 			"module":  "core",
-			// 			"stream":  streamID,
-			// 			"channel": channelID,
-			// 			"func":    "StreamServerRunStreamRtsp",
-			// 			"call":    "ClientHas",
-			// 		}).Debugln("Stream close has no client. ", streamID, channelID)
-			// 		return 0, ErrorStreamNoClients
-			// 	}
-			// 	checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
+		// case <-ctx.Done():
+		// 	log.WithFields(logrus.Fields{
+		// 		"module":  "core",
+		// 		"stream":  streamID,
+		// 		"channel": channelID,
+		// 		"func":    "StreamServerRunStreamRtsp",
+		// 		"call":    "ctx.Done()",
+		// 	}).Debugln("Stream close by ctx.cannel. ", streamID, channelID)
+		// 	return 0, nil
+		//Check stream have clients
+		// case <-checkClients.C:
+		// 	if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
+		// 		log.WithFields(logrus.Fields{
+		// 			"module":  "core",
+		// 			"stream":  streamID,
+		// 			"channel": channelID,
+		// 			"func":    "StreamServerRunStreamRtsp",
+		// 			"call":    "ClientHas",
+		// 		}).Debugln("Stream close has no client. ", streamID, channelID)
+		// 		return 0, ErrorStreamNoClients
+		// 	}
+		// 	checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second)
 		case <-checkClients.C:
 			cCnt := Storage.ClientCount(streamID, channelID)
 			if cCnt == 0 {
@@ -322,15 +322,15 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 
 	for {
 		select {
-		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
-				"module":  "core",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "StreamServerRunStreamRtmp",
-				"call":    "ctx.Done()",
-			}).Debugln("Stream close by cannel. ", streamID, channelID)
-			return 0, nil
+		// case <-ctx.Done():
+		// 	log.WithFields(logrus.Fields{
+		// 		"module":  "core",
+		// 		"stream":  streamID,
+		// 		"channel": channelID,
+		// 		"func":    "StreamServerRunStreamRtmp",
+		// 		"call":    "ctx.Done()",
+		// 	}).Debugln("Stream close by cannel. ", streamID, channelID)
+		// 	return 0, nil
 		//Check stream have clients
 		case <-checkClients.C:
 			if channel.OnDemand && !Storage.ClientHas(streamID, channelID) {
