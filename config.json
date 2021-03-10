@@ -11,7 +11,7 @@
     "rtsp_port": ":5541"
   },
   "streams": {
-    "18031e33-29be-4e1f-8374-a5523952efd9": {
+    "HNTV_rtmp": {
       "channels": {
         "0": {
           "on_demand": true,
@@ -20,16 +20,16 @@
       },
       "name": "HNTV_rtmp"
     },
-    "c522e3a3-489d-4e02-b18c-8c19a5933337": {
+    "local_rtmp": {
       "channels": {
         "0": {
           "on_demand": true,
-          "url": "rtmp://localhost:1935/stream/test"
+          "url": "rtmp://localhost:1935/live/test"
         }
       },
       "name": "local_rtmp"
     },
-    "fba957c1-083b-4589-b95a-c0a78a539958": {
+    "GXTV_rtmp": {
       "channels": {
         "0": {
           "on_demand": true,
@@ -38,7 +38,7 @@
       },
       "name": "GXTV_rtmp"
     },
-    "t1": {
+    "cam_rtsp": {
       "channels": {
         "0": {
           "on_demand": true,
