@@ -165,7 +165,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 	go wsCheck(ctx, streamID, channelID, ws, eofSignal)
 	var videoStart bool
-	noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
+	// noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
 
 	for {
 		select {
@@ -198,13 +198,13 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		// 	log.Println("no video timer. ", time.Now().Sub(t1).String())
 		// 	return
 		case avPkt := <-avChanR:
-			if b := noVideo.Reset(time.Duration(timeout_novideo) * time.Second); !b {
-				log.Println("timer reset err")
-			}
+			// if b := noVideo.Reset(time.Duration(timeout_novideo) * time.Second); !b {
+			// 	log.Println("timer reset err")
+			// }
 			// t1 = time.Now().UTC()
 
 			if avPkt.IsKeyFrame {
-				log.Println("MSE got avPkt. ", avPkt.Idx, avPkt.IsKeyFrame, len(avPkt.Data))
+				// log.Println("MSE got keyFrame. ", avPkt.Time, len(avPkt.Data))
 				videoStart = true
 			}
 
@@ -212,7 +212,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				continue
 			}
 
-			ready, buf, err := muxerMSE.WritePacket(*avPkt, true)
+			ready, buf, err := muxerMSE.WritePacket(*avPkt, false)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "http_mse",
@@ -224,7 +224,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				return
 			}
 			if ready {
-				if true && avPkt.IsKeyFrame {
+				if ch.Debug && avPkt.IsKeyFrame {
 					log.WithFields(logrus.Fields{
 						"module":  "http_mse",
 						"stream":  streamID,
