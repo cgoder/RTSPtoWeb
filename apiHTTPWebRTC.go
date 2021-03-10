@@ -220,7 +220,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 }
 
 func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
-	log.Println("enter webrtc ....................")
+	// log.Println("enter webrtc ....................")
 
 	if !Storage.StreamChannelExist(c.Param("uuid"), c.Param("channel")) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
@@ -323,5 +323,5 @@ func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
 		}
 	}()
 
-	log.Println("exit webrtc ....................")
+	// log.Println("exit webrtc ....................")
 }

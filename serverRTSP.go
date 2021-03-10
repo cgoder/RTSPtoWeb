@@ -444,7 +444,7 @@ func parseStage(buf []byte) (string, error) {
 
 //parseStreamChannel func
 func parseStreamChannel(buf []byte) (string, string, error) {
-	log.Println("channel -------> \n", buf)
+	// log.Println("channel -------> \n", buf)
 	uri := stringInBetween(string(buf), " ", " ")
 	st := strings.Split(uri, "/")
 	if len(st) >= 5 {

@@ -321,7 +321,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				return 0, ErrorStreamNoClients
 			}
 
-			log.Println("clients: ", cCnt)
+			// log.Println("clients: ", cCnt)
 			if len(checkClients.C) > 0 {
 				<-checkClients.C
 			}
@@ -332,7 +332,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 					"channel": channelID,
 					"func":    "streamRtmp",
 					"call":    "timer.Reset",
-				}).Errorln("checkClients timer reset err")
+				}).Errorln("checkClients timer reset err", cCnt)
 			}
 		//Read core signals
 		case signals := <-channel.signals:
@@ -362,9 +362,9 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			}
 
 			// pktCnt++
-			if avPkt.IsKeyFrame {
-				log.Println("Write keyframe to queue. ", avPkt.Time, len(avPkt.Data))
-			}
+			// if avPkt.IsKeyFrame {
+			// 	log.Println("Write keyframe to queue. ", avPkt.Time, len(avPkt.Data))
+			// }
 
 			// write av.Pkt to avQue
 			channel.av.avQue.WritePacket(avPkt)
@@ -453,7 +453,7 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
-	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 
@@ -468,6 +468,33 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		// 		"call":    "ctx.Done()",
 		// 	}).Debugln("Stream close by cancel. ")
 		// 	return 0, nil
+		case <-checkClients.C:
+			cCnt := Storage.ClientCount(streamID, channelID)
+			if cCnt == 0 {
+				log.WithFields(logrus.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "streamRtsp",
+					"call":    "ClientCount",
+				}).Debugln("Stream close has no client. ")
+
+				return 0, ErrorStreamNoClients
+			}
+
+			// log.Println("clients: ", cCnt)
+			if len(checkClients.C) > 0 {
+				<-checkClients.C
+			}
+			if b := checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second); !b {
+				log.WithFields(logrus.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "streamRtsp",
+					"call":    "timer.Reset",
+				}).Errorln("checkClients timer reset err", cCnt)
+			}
 		//Read core signals
 		case signals := <-channel.signals:
 			switch signals {
@@ -531,6 +558,13 @@ func writePktToAllClient(clients map[string]*ClientST, avPkt *av.Packet) {
 				if len(client.outgoingRTPPacket) < lenAvPacketQueue {
 					client.outgoingRTPPacket <- &avPkt.Data
 				} else if len(client.signals) < lenClientSignalQueue {
+					log.WithFields(logrus.Fields{
+						"module": "core",
+						// "stream":  streamID,
+						// "channel": channelID,
+						"func": "writePktToAllClient",
+						"call": "client.outgoingRTPPacket",
+					}).Errorln("client rtp chan full. ", len(client.outgoingRTPPacket))
 					//send stop signals to client
 					client.signals <- SignalStreamStop
 				}
@@ -539,13 +573,13 @@ func writePktToAllClient(clients map[string]*ClientST, avPkt *av.Packet) {
 					// log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)
 					client.outgoingAVPacket <- avPkt
 				} else {
-					log.WithFields(logrus.Fields{
-						"module": "core",
-						// "stream":  streamID,
-						// "channel": channelID,
-						"func": "writePktToAllClient",
-						"call": "client.outgoingAVPacket",
-					}).Errorln("client av chan full. ", len(client.outgoingAVPacket))
+					// log.WithFields(logrus.Fields{
+					// 	"module": "core",
+					// 	// "stream":  streamID,
+					// 	// "channel": channelID,
+					// 	"func": "writePktToAllClient",
+					// 	"call": "client.outgoingAVPacket",
+					// }).Errorln("client av chan full. ", len(client.outgoingAVPacket))
 				}
 			}
 		}
