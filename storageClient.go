@@ -6,7 +6,7 @@ import (
 	"github.com/deepch/vdk/av"
 )
 
-var lenAvPacketQueue int = 200
+var lenAvPacketQueue int = 600
 var lenClientSignalQueue int = 100
 
 //ClientAdd Add New Client to Translations
