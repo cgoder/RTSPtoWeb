@@ -5,7 +5,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/deepch/vdk/format/ts"
+	"github.com/cgoder/vdk/format/ts"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )

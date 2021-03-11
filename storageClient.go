@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/deepch/vdk/av"
+	"github.com/cgoder/vdk/av"
 )
 
 var lenAvPacketQueue int = 100

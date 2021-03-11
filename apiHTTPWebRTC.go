@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	webrtc "github.com/deepch/vdk/format/webrtcv3"
+	webrtc "github.com/cgoder/vdk/format/webrtcv3"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )

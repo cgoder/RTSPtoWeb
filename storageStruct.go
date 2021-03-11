@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/deepch/vdk/av"
-	"github.com/deepch/vdk/av/pubsub"
+	"github.com/cgoder/vdk/av"
+	"github.com/cgoder/vdk/av/pubsub"
 	"github.com/sirupsen/logrus"
 )
 
