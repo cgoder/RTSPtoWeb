@@ -122,6 +122,9 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 	// make writeable chan for read av.pkt
 	eofSignal := make(chan interface{}, 1)
+	defer func() {
+		eofSignal <- "wsEOF"
+	}()
 
 	go func() {
 
@@ -295,7 +298,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 						"call":    "WS.Receive",
 					}).Errorln(err.Error())
 				}
-				eofSignal <- "wsEOF"
+				// eofSignal <- "wsEOF"
 				return
 			}
 
@@ -309,53 +312,4 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}
 	}
 
-}
-
-func wsCheck(ctx context.Context, streamID string, channelID string, ws *websocket.Conn, eofSignal chan interface{}) {
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
-				"module":  "http_mse",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "wsCheck",
-				"call":    "ws exit by cancel.",
-			}).Debugln(ctx.Err())
-			return
-		default:
-			var message string
-			err := websocket.Message.Receive(ws, &message)
-			if err != nil {
-				if err == io.EOF {
-					log.WithFields(logrus.Fields{
-						"module":  "http_mse",
-						"stream":  streamID,
-						"channel": channelID,
-						"func":    "wsCheck",
-						"call":    "WS.Receive",
-					}).Infoln("EXIT! WS got exit signal.", err)
-				} else {
-					log.WithFields(logrus.Fields{
-						"module":  "http_mse",
-						"stream":  streamID,
-						"channel": channelID,
-						"func":    "wsCheck",
-						"call":    "WS.Receive",
-					}).Errorln(err.Error())
-				}
-				eofSignal <- "wsEOF"
-				return
-			}
-
-			log.WithFields(logrus.Fields{
-				"module":  "http_mse",
-				"stream":  streamID,
-				"channel": channelID,
-				"func":    "wsCheck",
-				"call":    "recv avpkt",
-			}).Debugln("WS recv msg: ", message)
-		}
-	}
 }
