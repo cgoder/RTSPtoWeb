@@ -112,7 +112,7 @@ func (obj *StorageST) StreamChannelRun(ctx context.Context, streamID string, cha
 					"channel": channelID,
 					"func":    "StreamChannelRun",
 					"call":    "StreamChannelRun",
-				}).Debugln("stream is running...")
+				}).Debugln("stream is running... clients:", len(streamTmp.Channels))
 			}
 			return nil
 		}
