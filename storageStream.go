@@ -128,3 +128,19 @@ func (obj *StorageST) StreamInfo(uuid string) (*StreamST, error) {
 	}
 	return nil, ErrorStreamNotFound
 }
+
+//StreamChannelRunning count online stream channel.
+func (obj *StorageST) StreamCount() int {
+	var cnt int
+	obj.mutex.RLock()
+	defer obj.mutex.RUnlock()
+	for _, st := range obj.Streams {
+		for _, ch := range st.Channels {
+			if ch.Status == ONLINE {
+				cnt++
+			}
+		}
+	}
+
+	return cnt
+}

@@ -114,11 +114,13 @@ func HTTPAPIServer() {
 //HTTPAPIServerIndex index file
 func HTTPAPIServerIndex(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"clients": Storage.ClientCountAll(),
-		"version": time.Now().String(),
-		"page":    "index",
+		"port":           Storage.ServerHTTPPort(),
+		"streams":        Storage.Streams,
+		"channelCnt":     Storage.StreamChannelCount(),
+		"channelRunning": Storage.StreamChannelRunning(),
+		"clients":        Storage.ClientCountAll(),
+		"version":        time.Now().String(),
+		"page":           "index",
 	})
 
 }

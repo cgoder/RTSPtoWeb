@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+//StreamChannelNew new channel obj.
 func StreamChannelNew(val ChannelST) ChannelST {
 	tmpCh := val
 	//make client's
@@ -530,4 +531,32 @@ func (obj *StorageST) StreamChannelDelete(streamID string, channelID string) err
 		}
 	}
 	return ErrorStreamNotFound
+}
+
+//StreamChannelCount count online stream channel.
+func (obj *StorageST) StreamChannelCount() int {
+	var cnt int
+	obj.mutex.RLock()
+	defer obj.mutex.RUnlock()
+	for _, st := range obj.Streams {
+		cnt = cnt + len(st.Channels)
+	}
+
+	return cnt
+}
+
+//StreamChannelRunning count online stream channel.
+func (obj *StorageST) StreamChannelRunning() int {
+	var cnt int
+	obj.mutex.RLock()
+	defer obj.mutex.RUnlock()
+	for _, st := range obj.Streams {
+		for _, ch := range st.Channels {
+			if ch.Status == ONLINE {
+				cnt++
+			}
+		}
+	}
+
+	return cnt
 }
