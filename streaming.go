@@ -209,7 +209,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 				"channel": channelID,
 				"func":    "streamRtmp",
 				"call":    "rtmp.Dial",
-			}).Errorln("RTMP Dial ---> ", JsonFormat(RTMPConn.URL), err)
+			}).Errorln("RTMP Dial ---> ", JsonFormat(channel.URL), err)
 			return err
 		}
 		log.WithFields(logrus.Fields{
@@ -218,7 +218,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			"channel": channelID,
 			"func":    "streamRtmp",
 			"call":    "Start",
-		}).Debugln("RTMP Conn---> ", JsonFormat(RTMPConn.URL))
+		}).Debugln("RTMP Conn---> ", JsonFormat(channel.URL))
 
 		// get av.Codec
 		t1 := time.Now().Local().UTC()
