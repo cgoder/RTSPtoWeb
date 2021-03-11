@@ -116,6 +116,7 @@ func HTTPAPIServerIndex(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
 		"port":    Storage.ServerHTTPPort(),
 		"streams": Storage.Streams,
+		"clients": Storage.ClientCountAll(),
 		"version": time.Now().String(),
 		"page":    "index",
 	})
@@ -236,7 +237,7 @@ func HTTPAPIFullScreenMultiView(c *gin.Context) {
 		"version": time.Now().String(),
 		"options": createParams,
 		"page":    "fullscreenmulti",
-		"query": c.Request.URL.Query(),
+		"query":   c.Request.URL.Query(),
 	})
 }
 

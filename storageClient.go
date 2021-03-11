@@ -94,3 +94,17 @@ func (obj *StorageST) ClientCount(streamID string, channelID string) int {
 
 	return len(obj.Streams[streamID].Channels[channelID].clients)
 }
+
+//ClientCountAll count all clients
+func (obj *StorageST) ClientCountAll() int {
+	var cnt int
+	obj.mutex.RLock()
+	defer obj.mutex.RUnlock()
+	for _, st := range obj.Streams {
+		for _, ch := range st.Channels {
+			cnt = cnt + len(ch.clients)
+		}
+	}
+
+	return cnt
+}
