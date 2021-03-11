@@ -223,40 +223,6 @@ func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]
 
 	return chTmp.av.avCodecs, nil
 
-	// t1 := time.Now().UTC()
-	// timer := time.NewTimer(20 * time.Second)
-	// for {
-	// 	select {
-	// 	case <-timer.C:
-	// 		log.WithFields(logrus.Fields{
-	// 			"module":  "StreamChannel",
-	// 			"stream":  streamID,
-	// 			"channel": channelID,
-	// 			"func":    "StreamChannelCodecs",
-	// 			"call":    "chan.updated",
-	// 		}).Errorln("Get codec timeout!")
-	// 		return nil, ErrorStreamChannelCodecNotFound
-	// 	case <-channelTmp.updated:
-	// 		obj.mutex.RLock()
-	// 		channelTmp, ok := obj.Streams[streamID].Channels[channelID]
-	// 		obj.mutex.RUnlock()
-	// 		if !ok {
-	// 			return nil, ErrorStreamChannelNotFound
-	// 		}
-
-	// 		t2 := time.Now().UTC().Sub(t1)
-	// 		log.WithFields(logrus.Fields{
-	// 			"module":  "http_mse",
-	// 			"stream":  streamID,
-	// 			"channel": channelID,
-	// 			"func":    "StreamChannelCodecs",
-	// 			"call":    "chan.updated",
-	// 		}).Debugf("Got Stream codec update! cost:%v", t2.String())
-
-	// 		return channelTmp.av.avCodecs, nil
-	// 	}
-	// }
-
 }
 
 //StreamChannelStatus change stream status

@@ -372,7 +372,7 @@ func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
 	}()
 
 	noVideo := time.NewTimer(10 * time.Second)
-
+	defer noVideo.Stop()
 	for {
 		select {
 		case <-noVideo.C:

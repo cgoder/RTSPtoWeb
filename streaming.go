@@ -82,7 +82,7 @@ func writePktToQueue(ctx context.Context, streamID string, channelID string, cha
 	cursor := channel.av.avQue.Latest()
 
 	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
-
+	// defer checkClients.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -292,6 +292,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 	}()
 
 	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	defer checkClients.Stop()
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 	// var pktCnt int
@@ -450,6 +451,7 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 	}()
 
 	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	defer checkClients.Stop()
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 

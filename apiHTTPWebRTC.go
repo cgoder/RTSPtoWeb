@@ -147,7 +147,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 
 		var videoStart bool
 		noVideo := time.NewTimer(time.Duration(timeout_novideo) * time.Second)
-
+		defer noVideo.Stop()
 		for {
 			select {
 			// case <-ctx.Done():
@@ -288,6 +288,7 @@ func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
 		defer Storage.ClientDelete(c.Param("uuid"), cid, c.Param("channel"))
 		var videoStart bool
 		noVideo := time.NewTimer(10 * time.Second)
+		defer noVideo.Stop()
 		for {
 			select {
 			case <-noVideo.C:

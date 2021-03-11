@@ -156,6 +156,7 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 	}()
 
 	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	defer checkClients.Stop()
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 
@@ -317,6 +318,7 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 	}()
 
 	checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
+	defer checkClients.Stop()
 	var preKeyTS = time.Duration(0)
 	var Seq []*av.Packet
 
