@@ -386,7 +386,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 func streamRtsp(ctx context.Context, streamID string, channelID string, channel *ChannelST) (int, error) {
 	t1 := time.Now().Local().UTC()
 	// rtsp client dial
-	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: true})
+	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: false, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: false})
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -407,9 +407,6 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 
 	if len(RTSPClient.CodecData) > 0 {
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, RTSPClient.CodecData, RTSPClient.SDPRaw)
-		defer func() {
-			Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
-		}()
 
 		// channel.updated <- true
 		channel.cond.Broadcast()
@@ -432,9 +429,6 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		return 0, ErrorStreamChannelCodecNotFound
 	}
 
-	// // stream status update
-	// Storage.StreamChannelStatus(streamID, channelID, ONLINE)
-	// defer Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
 	log.WithFields(logrus.Fields{
 		"module":  "core",
 		"stream":  streamID,
@@ -449,7 +443,9 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 	// release hls cache
 	defer func() {
 		cancel4Write()
+		RTSPClient.Close()
 		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
@@ -530,8 +526,8 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 				return 0, ErrorStreamStopRTSPSignal
 			}
 		// read rtp.Pkt for cast all clients. MUST read from OutgoingProxyQueue.
-		case <-RTSPClient.OutgoingProxyQueue:
-			// Storage.StreamChannelCastProxy(streamID, channelID, packetRTP)
+		// case <-RTSPClient.OutgoingProxyQueue:
+		// Storage.StreamChannelCastProxy(streamID, channelID, packetRTP)
 		// read av.Pkt for cast all clients.
 		case avPkt := <-RTSPClient.OutgoingPacketQueue:
 			// Storage.StreamChannelCast(streamID, channelID, avPkt)
