@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,9 +14,7 @@ import (
 
 func main() {
 
-	go func() {
-		http.ListenAndServe("0.0.0.0:6060", nil)
-	}()
+	go http.ListenAndServe("0.0.0.0:9527", nil)
 
 	log.WithFields(logrus.Fields{
 		"module": "main",
