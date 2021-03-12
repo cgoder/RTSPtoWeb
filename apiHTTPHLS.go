@@ -12,28 +12,33 @@ import (
 
 //HTTPAPIServerStreamHLSTS send client m3u8 play list
 func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
-	if !Storage.StreamChannelExist(c.Param("uuid"), c.Param("channel")) {
+	streamID := c.Param("uuid")
+	channelID := c.Param("channel")
+
+	if !Storage.StreamChannelExist(streamID, channelID) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSM3U8",
 			"call":    "StreamChannelExist",
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
+
 	c.Header("Content-Type", "application/x-mpegURL")
-	Storage.StreamChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
+	Storage.StreamChannelRun(context.Background(), streamID, channelID)
+
 	//If stream mode on_demand need wait ready segment's
 	for i := 0; i < 40; i++ {
-		index, seq, err := Storage.StreamHLSm3u8(c.Param("uuid"), c.Param("channel"))
+		index, seq, err := Storage.StreamHLSm3u8(streamID, channelID)
 		if err != nil {
 			c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(logrus.Fields{
 				"module":  "http_hls",
-				"stream":  c.Param("uuid"),
-				"channel": c.Param("channel"),
+				"stream":  streamID,
+				"channel": channelID,
 				"func":    "HTTPAPIServerStreamHLSM3U8",
 				"call":    "StreamHLSm3u8",
 			}).Errorln(err.Error())
@@ -45,8 +50,8 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 				c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 				log.WithFields(logrus.Fields{
 					"module":  "http_hls",
-					"stream":  c.Param("uuid"),
-					"channel": c.Param("channel"),
+					"stream":  streamID,
+					"channel": channelID,
 					"func":    "HTTPAPIServerStreamHLSM3U8",
 					"call":    "Write",
 				}).Errorln(err.Error())
@@ -60,29 +65,35 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 
 //HTTPAPIServerStreamHLSTS send client ts segment
 func HTTPAPIServerStreamHLSTS(c *gin.Context) {
-	if !Storage.StreamChannelExist(c.Param("uuid"), c.Param("channel")) {
+
+	streamID := c.Param("uuid")
+	channelID := c.Param("channel")
+
+	if !Storage.StreamChannelExist(streamID, channelID) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "StreamChannelExist",
 		}).Errorln(ErrorStreamNotFound.Error())
 		return
 	}
-	codecs, err := Storage.StreamChannelCodecs(c.Param("uuid"), c.Param("channel"))
+
+	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "StreamCodecs",
 		}).Errorln(err.Error())
 		return
 	}
+
 	outfile := bytes.NewBuffer([]byte{})
 	Muxer := ts.NewMuxer(outfile)
 	Muxer.PaddingToMakeCounterCont = true
@@ -91,20 +102,20 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "WriteHeader",
 		}).Errorln(err.Error())
 		return
 	}
-	seqData, err := Storage.StreamHLSTS(c.Param("uuid"), c.Param("channel"), stringToInt(c.Param("seq")))
+	seqData, err := Storage.StreamHLSTS(streamID, channelID, stringToInt(c.Param("seq")))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "StreamHLSTS",
 		}).Errorln(err.Error())
@@ -114,8 +125,8 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotHLSSegments.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "seqData",
 		}).Errorln(ErrorStreamNotHLSSegments.Error())
@@ -128,8 +139,8 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 			c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(logrus.Fields{
 				"module":  "http_hls",
-				"stream":  c.Param("uuid"),
-				"channel": c.Param("channel"),
+				"stream":  streamID,
+				"channel": channelID,
 				"func":    "HTTPAPIServerStreamHLSTS",
 				"call":    "WritePacket",
 			}).Errorln(err.Error())
@@ -141,8 +152,8 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "WriteTrailer",
 		}).Errorln(err.Error())
@@ -153,8 +164,8 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
 			"module":  "http_hls",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
+			"stream":  streamID,
+			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "Write",
 		}).Errorln(err.Error())
