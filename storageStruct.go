@@ -20,10 +20,16 @@ const (
 	RTSP
 )
 
-//Default stream status type
+//Default channel/stream status type
 const (
 	OFFLINE = iota
 	ONLINE
+)
+
+const (
+	STREAM_UNKNOWN = iota
+	STREAM_REFRESH
+	STREAM_AVCODEC_UPDATE
 )
 
 //Default stream errors
@@ -42,13 +48,14 @@ var (
 	ErrorStreamChannelCodecNotFound = errors.New("stream channel codec not ready, possible stream offline")
 	ErrorStreamChannelCodecUpdate   = errors.New("stream channel codec update")
 	ErrorStreamsLen0                = errors.New("streams len zero")
+	ErrorStreamAlreadyRunning       = errors.New("stream already running")
 )
 
 //StorageST main storage struct
 type StorageST struct {
 	mutex   sync.RWMutex
-	Server  ServerST            `json:"server" groups:"api,config"`
-	Streams map[string]StreamST `json:"streams" groups:"api,config"`
+	Server  ServerST              `json:"server" groups:"api,config"`
+	Streams map[string]*ProgramST `json:"streams" groups:"api,config"`
 }
 
 //ServerST server storage section
@@ -65,63 +72,57 @@ type ServerST struct {
 }
 
 //ServerST stream storage section
-type StreamST struct {
-	Name     string               `json:"name,omitempty" groups:"api,config"`
-	Channels map[string]ChannelST `json:"channels,omitempty" groups:"api,config"`
+type ProgramST struct {
+	UUID     string
+	Name     string                `json:"name,omitempty" groups:"api,config"`
+	Channels map[string]*ChannelST `json:"channels,omitempty" groups:"api,config"`
 }
 
 type ChannelST struct {
+	// channel uid
+	UUID string
 	Name string `json:"name,omitempty" groups:"api,config"`
-	URL  string `json:"url,omitempty" groups:"api,config"`
+	// channel source av stream
+	URL    string `json:"url,omitempty" groups:"api,config"`
+	source *AvStream
+	// channel stream clients
+	clients map[string]*ClientST
+	// channel update. or codec update.
+	// updated chan bool
+	cond *sync.Cond
+
+	// opreation signal.
+	signals chan int
+	///////////////////////////////////////////////////
+
 	// auto streaming flag. FALSE==auto. default:false.
 	OnDemand bool `json:"on_demand,omitempty" groups:"api,config"`
 	Debug    bool `json:"debug,omitempty" groups:"api,config"`
-	// online/offline. means channel is streaming.
-	Status int `json:"status,omitempty" groups:"api"`
-
-	// codecs []av.CodecData
-	// sdp []byte
-
-	// channel update. or codec update.
-	updated chan bool
-	cond    *sync.Cond
-	// opreation signal.
-	signals chan int
-
 	// HLS
-	hlsSegmentBuffer map[int]Segment
+	hlsSegmentBuffer map[int]*Segment
 	hlsSegmentNumber int
-
-	// sub clients
-	clients map[string]*ClientST
-
-	// av
-	av AvST
-
-	// unuseful
-	runLock bool
-	ack     time.Time
 }
 
-//ClientST client storage section
+//AvStream read data from source stream.
+type AvStream struct {
+	protocol int
+	status   int
+	avCodecs []av.CodecData
+	sdp      []byte
+	avQue    *pubsub.Queue
+}
+
+//ClientST client read avPkt from queue, write to chan.
 type ClientST struct {
-	mode              int
-	signals           chan int
-	outgoingAVPacket  chan *av.Packet
-	outgoingRTPPacket chan *[]byte
-	socket            net.Conn
+	UUID             string
+	protocol         int
+	socket           net.Conn
+	signals          chan int
+	outgoingAVPacket chan *av.Packet
 }
 
 //Segment HLS cache section
 type Segment struct {
 	dur  time.Duration
 	data []*av.Packet
-}
-
-//AvST av
-type AvST struct {
-	avCodecs []av.CodecData
-	// add for multi clients
-	avQue *pubsub.Queue
-	sdp   []byte
 }

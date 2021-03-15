@@ -41,6 +41,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Infoln("Cancel av send goroutine.")
 	}()
 
+	log.Println("mse++++++")
 	// check stream status
 	// if !Storage.StreamChannelExist(streamID, channelID)
 	ch, err := Storage.StreamChannelGet(streamID, channelID)
@@ -89,7 +90,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}
 
 	// add client/player
-	cid, avChanR, _, err := Storage.ClientAdd(streamID, channelID, MSE)
+	cid, avChanR, err := Storage.ClientAdd(streamID, channelID, MSE)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "http_mse",
@@ -106,6 +107,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		Storage.ClientDelete(streamID, cid, channelID)
 		// log.Println("del client. clients: ", Storage.ClientCount(streamID, channelID))
 	}()
+	log.Println("mse++++++ ok")
 
 	// set websocket timeout for write av.Pkt
 	err = ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))

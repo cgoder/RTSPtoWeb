@@ -104,7 +104,7 @@ func HTTPAPIServerStreamsMultiControlDelete(c *gin.Context) {
 
 //HTTPAPIServerStreamAdd function add new stream
 func HTTPAPIServerStreamAdd(c *gin.Context) {
-	var payload StreamST
+	var payload ProgramST
 	err := c.BindJSON(&payload)
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -116,7 +116,7 @@ func HTTPAPIServerStreamAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = Storage.StreamAdd(c.Param("uuid"), payload)
+	err = Storage.StreamAdd(c.Param("uuid"), &payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{
@@ -132,7 +132,7 @@ func HTTPAPIServerStreamAdd(c *gin.Context) {
 
 //HTTPAPIServerStreamEdit function edit stream
 func HTTPAPIServerStreamEdit(c *gin.Context) {
-	var payload StreamST
+	var payload ProgramST
 	err := c.BindJSON(&payload)
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -144,7 +144,7 @@ func HTTPAPIServerStreamEdit(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = Storage.StreamEdit(c.Param("uuid"), payload)
+	err = Storage.StreamEdit(c.Param("uuid"), &payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(logrus.Fields{

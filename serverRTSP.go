@@ -332,7 +332,7 @@ func RTSPServerClientHandle(conn net.Conn) {
 
 //handleRTSPServerPlay func
 func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
-	cid, _, ch, err := Storage.ClientAdd(uuid, channel, RTSP)
+	cid, avChanR, err := Storage.ClientAdd(uuid, channel, RTSP)
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "rtsp_server",
@@ -377,9 +377,9 @@ func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
 		select {
 		case <-noVideo.C:
 			return
-		case pck := <-ch:
+		case pck := <-avChanR:
 			noVideo.Reset(10 * time.Second)
-			_, err := conn.Write(*pck)
+			_, err := conn.Write(*(&pck.Data))
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "rtsp_server",

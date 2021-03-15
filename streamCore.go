@@ -106,7 +106,7 @@ func StreamServerRunStream(ctx context.Context, streamID string, channelID strin
 //StreamServerRunStreamRtsp rtsp stream goroutine
 func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID string, channel *ChannelST) (int, error) {
 	// rtsp client dial
-	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: true})
+	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: true, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: false, OutgoingProxy: false})
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -128,7 +128,7 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 	// rtsp codec update
 	if len(RTSPClient.CodecData) > 0 {
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, RTSPClient.CodecData, RTSPClient.SDPRaw)
-		channel.updated <- true
+		channel.signals <- SignalStreamCodecUpdate
 		// log.WithFields(logrus.Fields{
 		// 	"module":  "core",
 		// 	"stream":  streamID,
@@ -139,7 +139,7 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 	}
 
 	// stream status update
-	Storage.StreamChannelStatus(streamID, channelID, ONLINE)
+	Storage.StreamChannelStatusUpdate(streamID, channelID, ONLINE)
 	log.WithFields(logrus.Fields{
 		"module":  "core",
 		"stream":  streamID,
@@ -151,7 +151,7 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 	// release
 	defer func() {
 		RTSPClient.Close()
-		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamChannelStatusUpdate(streamID, channelID, OFFLINE)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
@@ -219,8 +219,8 @@ func StreamServerRunStreamRtsp(ctx context.Context, streamID string, channelID s
 				return 0, ErrorStreamStopRTSPSignal
 			}
 		// read rtp.Pkt for cast all clients.
-		case packetRTP := <-RTSPClient.OutgoingProxyQueue:
-			Storage.StreamChannelCastProxy(streamID, channelID, packetRTP)
+		// case packetRTP := <-RTSPClient.OutgoingProxyQueue:
+		// Storage.StreamChannelCastProxy(streamID, channelID, packetRTP)
 		// read av.Pkt for cast all clients.
 		case packetAV := <-RTSPClient.OutgoingPacketQueue:
 			if packetAV.IsKeyFrame {
@@ -283,7 +283,7 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 
 	if len(streams) > 0 {
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, streams, nil)
-		channel.updated <- true
+		channel.signals <- SignalStreamCodecUpdate
 		// log.WithFields(logrus.Fields{
 		// 	"module":  "core",
 		// 	"stream":  streamID,
@@ -301,7 +301,7 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 	}).Debugln("Success connection RTMP")
 
 	// stream status update
-	Storage.StreamChannelStatus(streamID, channelID, ONLINE)
+	Storage.StreamChannelStatusUpdate(streamID, channelID, ONLINE)
 	log.WithFields(logrus.Fields{
 		"module":  "core",
 		"stream":  streamID,
@@ -313,7 +313,7 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 	// release
 	defer func() {
 		RTMPConn.Close()
-		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamChannelStatusUpdate(streamID, channelID, OFFLINE)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
@@ -373,7 +373,7 @@ func StreamServerRunStreamRtmp(ctx context.Context, streamID string, channelID s
 			}
 
 			// send av.RTP
-			Storage.StreamChannelCastProxy(streamID, channelID, &pktRTMP.Data)
+			// Storage.StreamChannelCastProxy(streamID, channelID, &pktRTMP.Data)
 
 			if pktRTMP.IsKeyFrame {
 				if preKeyTS > 0 {

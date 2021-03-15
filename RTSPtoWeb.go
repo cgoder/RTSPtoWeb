@@ -26,6 +26,7 @@ func main() {
 		cancel()
 	}()
 
+	go DebugRuntime()
 	go HTTPAPIServer()
 	go RTSPServer()
 	go Storage.StreamChannelRunAll(ctx)

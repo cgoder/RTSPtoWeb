@@ -44,7 +44,7 @@ func NewStreamCore() *StorageST {
 	debug = tmp.Server.Debug
 	for i, i2 := range tmp.Streams {
 		for i3, i4 := range i2.Channels {
-			tmpCh := StreamChannelNew(i4)
+			tmpCh := StreamChannelNew(i4.URL, i4.Name)
 			i2.Channels[i3] = tmpCh
 		}
 		tmp.Streams[i] = i2

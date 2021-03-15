@@ -120,7 +120,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 	// go recvFrame(ctx, streamID, channelID, c, eofSignal)
 	go func() {
 		// add client/player
-		cid, avChanR, _, err := Storage.ClientAdd(streamID, channelID, WEBRTC)
+		cid, avChanR, err := Storage.ClientAdd(streamID, channelID, WEBRTC)
 		if err != nil {
 			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(logrus.Fields{
@@ -273,7 +273,7 @@ func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
 		return
 	}
 	go func() {
-		cid, ch, _, err := Storage.ClientAdd(c.Param("uuid"), c.Param("channel"), WEBRTC)
+		cid, ch, err := Storage.ClientAdd(c.Param("uuid"), c.Param("channel"), WEBRTC)
 		if err != nil {
 			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(logrus.Fields{

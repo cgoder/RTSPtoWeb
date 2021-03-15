@@ -44,7 +44,7 @@ func StreamChannelRun(ctx context.Context, streamID string, channelID string) er
 	}
 
 	// channle is streaming?
-	if channel.Status == ONLINE {
+	if channel.source.status == ONLINE {
 		log.WithFields(logrus.Fields{
 			"module":  "streaming",
 			"stream":  streamID,
@@ -56,7 +56,7 @@ func StreamChannelRun(ctx context.Context, streamID string, channelID string) er
 		return nil
 	}
 
-	Storage.StreamChannelStatus(streamID, channelID, ONLINE)
+	Storage.StreamChannelStatusUpdate(streamID, channelID, ONLINE)
 
 	log.WithFields(logrus.Fields{
 		"module":  "core",
@@ -79,7 +79,7 @@ func writePktToQueue(ctx context.Context, streamID string, channelID string, cha
 	clients := channel.clients
 
 	// get av.Pkt from queue.
-	cursor := channel.av.avQue.Latest()
+	cursor := channel.source.avQue.Latest()
 
 	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 	// defer checkClients.Stop()
@@ -287,7 +287,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 		cancel4Write()
 		RTMPConn.Close()
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
-		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamChannelStatusUpdate(streamID, channelID, OFFLINE)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
 
@@ -368,7 +368,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 			// }
 
 			// write av.Pkt to avQue
-			channel.av.avQue.WritePacket(avPkt)
+			channel.source.avQue.WritePacket(avPkt)
 
 			if avPkt.IsKeyFrame {
 				if preKeyTS > 0 {
@@ -387,7 +387,7 @@ func streamRtmp(ctx context.Context, streamID string, channelID string, channel 
 func streamRtsp(ctx context.Context, streamID string, channelID string, channel *ChannelST) (int, error) {
 	t1 := time.Now().Local().UTC()
 	// rtsp client dial
-	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: false, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: channel.Debug, OutgoingProxy: false})
+	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: false, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: false, OutgoingProxy: false})
 	if err != nil {
 		log.WithFields(logrus.Fields{
 			"module":  "core",
@@ -435,7 +435,7 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		"stream":  streamID,
 		"channel": channelID,
 		"func":    "streamRtsp",
-		"call":    "StreamChannelStatus",
+		"call":    "StreamChannelStatusUpdate",
 	}).Debugln("Success connection RTSP")
 
 	ctx4Write, cancel4Write := context.WithCancel(context.Background())
@@ -445,7 +445,7 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 	defer func() {
 		cancel4Write()
 		RTSPClient.Close()
-		Storage.StreamChannelStatus(streamID, channelID, OFFLINE)
+		Storage.StreamChannelStatusUpdate(streamID, channelID, OFFLINE)
 		Storage.StreamChannelCodecsUpdate(streamID, channelID, nil, nil)
 		Storage.StreamHLSFlush(streamID, channelID)
 	}()
@@ -533,7 +533,7 @@ func streamRtsp(ctx context.Context, streamID string, channelID string, channel 
 		// read av.Pkt for cast all clients.
 		case avPkt := <-RTSPClient.OutgoingPacketQueue:
 			// Storage.StreamChannelCast(streamID, channelID, avPkt)
-			channel.av.avQue.WritePacket(*avPkt)
+			channel.source.avQue.WritePacket(*avPkt)
 
 			if avPkt.IsKeyFrame {
 				if preKeyTS > 0 {
@@ -552,20 +552,8 @@ func writePktToAllClient(clients map[string]*ClientST, avPkt *av.Packet) {
 
 	if len(clients) > 0 {
 		for _, client := range clients {
-			if client.mode == RTSP {
-				if len(client.outgoingRTPPacket) < lenAvPacketQueue {
-					client.outgoingRTPPacket <- &avPkt.Data
-				} else if len(client.signals) < lenClientSignalQueue {
-					log.WithFields(logrus.Fields{
-						"module": "core",
-						// "stream":  streamID,
-						// "channel": channelID,
-						"func": "writePktToAllClient",
-						"call": "client.outgoingRTPPacket",
-					}).Errorln("client rtp chan full. ", len(client.outgoingRTPPacket))
-					//send stop signals to client
-					client.signals <- SignalStreamStop
-				}
+			if client.protocol == RTSP {
+				continue
 			} else {
 				if len(client.outgoingAVPacket) < lenAvPacketQueue {
 					// log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)

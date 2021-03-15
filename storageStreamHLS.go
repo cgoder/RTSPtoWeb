@@ -15,7 +15,7 @@ func (obj *StorageST) StreamHLSAdd(uuid string, channelID string, val []*av.Pack
 	if tmp, ok := obj.Streams[uuid]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			channelTmp.hlsSegmentNumber++
-			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = Segment{data: val, dur: dur}
+			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = &Segment{data: val, dur: dur}
 			if len(channelTmp.hlsSegmentBuffer) >= 6 {
 				delete(channelTmp.hlsSegmentBuffer, channelTmp.hlsSegmentNumber-6-1)
 			}
@@ -52,29 +52,28 @@ func (obj *StorageST) StreamHLSm3u8(uuid string, channelID string) (string, int,
 }
 
 //StreamHLSTS send hls segment buffer to clients
-func (obj *StorageST) StreamHLSTS(uuid string, channelID string, seq int) ([]*av.Packet, error) {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			if tmp, ok := channelTmp.hlsSegmentBuffer[seq]; ok {
-				return tmp.data, nil
-			}
-		}
+func (obj *StorageST) StreamHLSTS(streamID string, channelID string, seq int) ([]*av.Packet, error) {
+	obj.mutex.Lock()
+	defer obj.mutex.Unlock()
+	ch, ok := obj.Streams[streamID].Channels[channelID]
+	if !ok {
+		return nil, ErrorStreamChannelNotFound
 	}
-	return nil, ErrorStreamNotFound
+
+	if tmp, ok := ch.hlsSegmentBuffer[seq]; ok {
+		return tmp.data, nil
+	} else {
+		return nil, ErrorStreamChannelNotFound
+	}
 }
 
 //StreamHLSFlush delete hls cache
-func (obj *StorageST) StreamHLSFlush(uuid string, channelID string) {
+func (obj *StorageST) StreamHLSFlush(streamID string, channelID string) {
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			channelTmp.hlsSegmentBuffer = make(map[int]Segment)
-			channelTmp.hlsSegmentNumber = 0
-			tmp.Channels[channelID] = channelTmp
-			obj.Streams[uuid] = tmp
-		}
+	ch, ok := obj.Streams[streamID].Channels[channelID]
+	if ok {
+		ch.hlsSegmentBuffer = make(map[int]*Segment)
+		ch.hlsSegmentNumber = 0
 	}
 }

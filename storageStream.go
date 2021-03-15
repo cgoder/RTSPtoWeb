@@ -3,10 +3,10 @@ package main
 import "context"
 
 //StreamsList list all stream
-func (obj *StorageST) StreamsList() map[string]StreamST {
+func (obj *StorageST) StreamsList() map[string]*ProgramST {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	tmp := make(map[string]StreamST)
+	tmp := make(map[string]*ProgramST)
 	for i, i2 := range obj.Streams {
 		tmp[i] = i2
 	}
@@ -14,24 +14,30 @@ func (obj *StorageST) StreamsList() map[string]StreamST {
 }
 
 //StreamAdd add stream
-func (obj *StorageST) StreamAdd(uuid string, val StreamST) error {
+func (obj *StorageST) StreamAdd(uuid string, val *ProgramST) error {
+	progID := uuid
+
 	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if _, ok := obj.Streams[uuid]; ok {
+	_, ok := obj.Streams[progID]
+	obj.mutex.Unlock()
+	if ok {
 		return ErrorStreamAlreadyExists
 	}
-	for i, i2 := range val.Channels {
-		i2 = obj.StreamChannelMake(i2)
+
+	obj.StreamChannelStop(progID, "")
+
+	obj.mutex.Lock()
+	obj.Streams[progID] = val
+	obj.mutex.Unlock()
+
+	for chID, i2 := range val.Channels {
 		if !i2.OnDemand {
-			// i2.runLock = true
-			val.Channels[i] = i2
-			go StreamServerRunStreamDo(context.TODO(), uuid, i)
-		} else {
-			val.Channels[i] = i2
+			// go StreamServerRunStreamDo(context.TODO(), uuid, i)
+			go StreamChannelRun(context.TODO(), progID, chID)
 		}
 	}
 
-	obj.Streams[uuid] = val
+	obj.Streams[progID] = val
 	err := obj.SaveConfig()
 	if err != nil {
 		return err
@@ -40,107 +46,85 @@ func (obj *StorageST) StreamAdd(uuid string, val StreamST) error {
 }
 
 //StreamEdit edit stream
-func (obj *StorageST) StreamEdit(uuid string, val StreamST) error {
+func (obj *StorageST) StreamEdit(uuid string, val *ProgramST) error {
+	progID := uuid
+
 	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		for i, i2 := range tmp.Channels {
-			if i2.Status == ONLINE {
-				tmp.Channels[i] = i2
-				obj.Streams[uuid] = tmp
-				i2.signals <- SignalStreamStop
-			}
-		}
-		for i3, i4 := range val.Channels {
-			i4 = obj.StreamChannelMake(i4)
-			if !i4.OnDemand {
-				// i4.runLock = true
-				val.Channels[i3] = i4
-				go StreamServerRunStreamDo(context.TODO(), uuid, i3)
-			} else {
-				val.Channels[i3] = i4
-			}
-		}
-		obj.Streams[uuid] = val
-		err := obj.SaveConfig()
-		if err != nil {
-			return err
-		}
-		return nil
+	_, ok := obj.Streams[progID]
+	obj.mutex.Unlock()
+	if !ok {
+		return ErrorStreamNotFound
 	}
-	return ErrorStreamNotFound
+
+	obj.StreamChannelStop(progID, "")
+
+	obj.mutex.Lock()
+	obj.Streams[progID] = val
+	obj.mutex.Unlock()
+
+	for _, ch := range val.Channels {
+		if !ch.OnDemand {
+			// go StreamServerRunStreamDo(ctx, streamID, channelID)
+			go StreamChannelRun(context.Background(), progID, ch.UUID)
+		}
+	}
+
+	err := obj.SaveConfig()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //StreamReload reload stream
 func (obj *StorageST) StopAll() {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	for _, st := range obj.Streams {
-		for _, i2 := range st.Channels {
-			if i2.Status == ONLINE {
-				i2.signals <- SignalStreamStop
-			}
-		}
-	}
+	obj.StreamChannelStop("", "")
 }
 
 //StreamReload reload stream
 func (obj *StorageST) StreamReload(uuid string) error {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		for _, i2 := range tmp.Channels {
-			if i2.Status == ONLINE {
-				i2.signals <- SignalStreamRestart
-			}
-		}
-		return nil
-	}
-	return ErrorStreamNotFound
+	// obj.mutex.RLock()
+	// defer obj.mutex.RUnlock()
+	// if tmp, ok := obj.Streams[uuid]; ok {
+	// 	for _, i2 := range tmp.Channels {
+	// 		if i2.Status == ONLINE {
+	// 			i2.signals <- SignalStreamRestart
+	// 		}
+	// 	}
+	// 	return nil
+	// }
+	// return ErrorStreamNotFound
+	return nil
 }
 
 //StreamDelete stream
 func (obj *StorageST) StreamDelete(uuid string) error {
+	progID := uuid
+
 	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		for _, i2 := range tmp.Channels {
-			if i2.Status == ONLINE {
-				i2.signals <- SignalStreamStop
-			}
-		}
-		delete(obj.Streams, uuid)
-		err := obj.SaveConfig()
-		if err != nil {
-			return err
-		}
-		return nil
+	_, ok := obj.Streams[progID]
+	obj.mutex.Unlock()
+	if !ok {
+		return ErrorStreamNotFound
 	}
-	return ErrorStreamNotFound
+
+	obj.mutex.Lock()
+	delete(obj.Streams, uuid)
+	obj.mutex.Unlock()
+
+	err := obj.SaveConfig()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 //StreamInfo return stream info
-func (obj *StorageST) StreamInfo(uuid string) (*StreamST, error) {
+func (obj *StorageST) StreamInfo(uuid string) (*ProgramST, error) {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
 	if tmp, ok := obj.Streams[uuid]; ok {
-		return &tmp, nil
+		return tmp, nil
 	}
 	return nil, ErrorStreamNotFound
-}
-
-//StreamChannelRunning count online stream channel.
-func (obj *StorageST) StreamCount() int {
-	var cnt int
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	for _, st := range obj.Streams {
-		for _, ch := range st.Channels {
-			if ch.Status == ONLINE {
-				cnt++
-			}
-		}
-	}
-
-	return cnt
 }
