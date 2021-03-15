@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"net"
 	"sync"
 	"time"
 
@@ -116,7 +115,6 @@ type AvStream struct {
 type ClientST struct {
 	UUID             string
 	protocol         int
-	socket           net.Conn
 	signals          chan int
 	outgoingAVPacket chan *av.Packet
 }

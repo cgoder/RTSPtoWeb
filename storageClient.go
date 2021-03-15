@@ -5,7 +5,7 @@ import (
 )
 
 var lenAvPacketQueue int = 100
-var lenClientSignalQueue int = 100
+var lenClientSignalQueue int = 1
 
 //ClientAdd Add New Client to Translations
 func (obj *StorageST) ClientAdd(streamID string, channelID string, mode int) (string, chan *av.Packet, error) {
@@ -43,7 +43,9 @@ func (obj *StorageST) ClientDelete(streamID string, cid string, channelID string
 	obj.mutex.Lock()
 	defer obj.mutex.Unlock()
 	if _, ok := obj.Streams[streamID]; ok {
-		delete(obj.Streams[streamID].Channels[channelID].clients, cid)
+		if _, ok := obj.Streams[streamID].Channels[channelID].clients[cid]; ok {
+			delete(obj.Streams[streamID].Channels[channelID].clients, cid)
+		}
 	}
 }
 
