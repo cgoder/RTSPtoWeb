@@ -54,12 +54,12 @@ var (
 //StorageST main storage struct
 type StorageST struct {
 	mutex   sync.RWMutex
-	Server  ServerST              `json:"server" groups:"api,config"`
+	Config  ConfigST              `json:"server" groups:"api,config"`
 	Streams map[string]*ProgramST `json:"streams" groups:"api,config"`
 }
 
-//ServerST server storage section
-type ServerST struct {
+//ConfigST server storage section
+type ConfigST struct {
 	Debug        bool         `json:"debug" groups:"api,config"`
 	LogLevel     logrus.Level `json:"log_level" groups:"api,config"`
 	HTTPDemo     bool         `json:"http_demo" groups:"api,config"`
@@ -71,7 +71,7 @@ type ServerST struct {
 	RTSPPort     string       `json:"rtsp_port" groups:"api,config"`
 }
 
-//ServerST stream storage section
+//ConfigST stream storage section
 type ProgramST struct {
 	UUID     string
 	Name     string                `json:"name,omitempty" groups:"api,config"`

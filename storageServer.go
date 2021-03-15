@@ -15,57 +15,57 @@ var (
 func (obj *StorageST) ServerHTTPDir() string {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	if filepath.Clean(obj.Server.HTTPDir) == "." {
+	if filepath.Clean(obj.Config.HTTPDir) == "." {
 		return DefaultHTTPDir
 	}
-	return filepath.Clean(obj.Server.HTTPDir)
+	return filepath.Clean(obj.Config.HTTPDir)
 }
 
 //ServerHTTPDebug read debug options
 func (obj *StorageST) ServerHTTPDebug() bool {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.HTTPDebug
+	return obj.Config.HTTPDebug
 }
 
 //ServerLogLevel read debug options
 func (obj *StorageST) ServerLogLevel() logrus.Level {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.LogLevel
+	return obj.Config.LogLevel
 }
 
 //ServerHTTPDemo read demo options
 func (obj *StorageST) ServerHTTPDemo() bool {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.HTTPDemo
+	return obj.Config.HTTPDemo
 }
 
 //ServerHTTPLogin read Login options
 func (obj *StorageST) ServerHTTPLogin() string {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.HTTPLogin
+	return obj.Config.HTTPLogin
 }
 
 //ServerHTTPPassword read Password options
 func (obj *StorageST) ServerHTTPPassword() string {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.HTTPPassword
+	return obj.Config.HTTPPassword
 }
 
 //ServerHTTPPort read HTTP Port options
 func (obj *StorageST) ServerHTTPPort() string {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.HTTPPort
+	return obj.Config.HTTPPort
 }
 
 //ServerRTSPPort read HTTP Port options
 func (obj *StorageST) ServerRTSPPort() string {
 	obj.mutex.RLock()
 	defer obj.mutex.RUnlock()
-	return obj.Server.RTSPPort
+	return obj.Config.RTSPPort
 }
