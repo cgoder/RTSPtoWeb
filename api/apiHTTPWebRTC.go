@@ -54,21 +54,6 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 		return
 	}
 
-	// add client/player
-	cid, avChanR, err := service.ClientAdd(streamID, channelID, gss.PLAY_WEBRTC)
-	defer service.ClientDelete(streamID, channelID, cid)
-	if err != nil {
-		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(log.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "ClientAdd",
-		}).Errorln(err.Error())
-		return
-	}
-
 	log.Println("webrtc++++++ ok")
 
 	// make writeable chan for read av.pkt
@@ -79,7 +64,6 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 
 	//webrtc init. will be close by VDK webrtc mod if timeout.
 	muxerWebRTC := webrtc.NewMuxer(webrtc.Options{})
-	defer muxerWebRTC.Close()
 	answer, err := muxerWebRTC.WriteHeader(codecs, c.PostForm("data"))
 	if err != nil {
 		// c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -106,6 +90,22 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 	}
 
 	go func() {
+		defer muxerWebRTC.Close()
+
+		// add client/player
+		cid, avChanR, err := service.ClientAdd(streamID, channelID, gss.PLAY_WEBRTC)
+		defer service.ClientDelete(streamID, channelID, cid)
+		if err != nil {
+			c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
+			log.WithFields(log.Fields{
+				"module":  "http_mse",
+				"stream":  streamID,
+				"channel": channelID,
+				"func":    "HTTPAPIServerStreamMSE",
+				"call":    "ClientAdd",
+			}).Errorln(err.Error())
+			return
+		}
 
 		var videoStart bool
 
@@ -131,7 +131,6 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 			// 	}).Debugln("got eof signal.")
 			// 	return
 			case avPkt := <-avChanR:
-				log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
 				if avPkt.IsKeyFrame {
 					videoStart = true
 				}
@@ -141,6 +140,9 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 					continue
 				}
 
+				// if avPkt.IsKeyFrame {
+				// 	log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
+				// }
 				err = muxerWebRTC.WritePacket(*avPkt)
 				if err != nil {
 					log.WithFields(log.Fields{
