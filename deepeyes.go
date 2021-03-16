@@ -2,21 +2,22 @@ package main
 
 import (
 	"context"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/cgoder/deepeyes/api"
+	gss "github.com/cgoder/deepeyes/gss"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 
-	go http.ListenAndServe("0.0.0.0:9527", nil)
+	svr := gss.NewService()
 
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module": "main",
 		"func":   "main",
 	}).Info("Server CORE start")
@@ -26,30 +27,38 @@ func main() {
 		cancel()
 	}()
 
-	go DebugRuntime()
-	go HTTPAPIServer()
-	go RTSPServer()
-	go Storage.StreamChannelRunAll(ctx)
+	// pprof debug
+	go gss.DebugRuntime()
+
+	// http service
+	go api.HTTPAPIServer(svr)
+
+	// go RTSPServer()
+
+	// auto stream
+	go svr.ChannelRunAll(ctx)
 
 	signalChanel := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(signalChanel, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-signalChanel
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module": "main",
 			"func":   "main",
 		}).Info("Server receive signal", sig)
 		done <- true
 	}()
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module": "main",
 		"func":   "main",
 	}).Info("Server start success a wait signals")
+
 	<-done
-	Storage.StopAll()
+
+	svr.ProgramStopAll()
 	time.Sleep(2 * time.Second)
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module": "main",
 		"func":   "main",
 	}).Info("Server stop working by signal")

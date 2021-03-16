@@ -1,4 +1,4 @@
-package service
+package gss
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/cgoder/vdk/av/pubsub"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 //ChannelNew new channel svr.
@@ -77,10 +78,10 @@ func (svr *ServerST) ChannelRunAll(ctx context.Context) {
 }
 
 //ChannelRun one stream and lock
-func (svr *ServerST) ChannelRun(ctx context.Context, streamID string, channelID string) error {
+func (svr *ServerST) ChannelRun(ctx context.Context, programID string, channelID string) error {
 	// log.WithFields(logrus.Fields{
 	// 	"module":  "Channel",
-	// 	"stream":  streamID,
+	// 	"stream":  programID,
 	// 	"channel": channelID,
 	// 	"func":    "ChannelRun",
 	// 	"call":    "ChannelRun",
@@ -88,12 +89,12 @@ func (svr *ServerST) ChannelRun(ctx context.Context, streamID string, channelID 
 
 	// get stream channel
 	svr.mutex.Lock()
-	ch, ok := svr.Programs[streamID].Channels[channelID]
+	ch, ok := svr.Programs[programID].Channels[channelID]
 	svr.mutex.Unlock()
 	if !ok {
 		log.WithFields(logrus.Fields{
 			"module":  "Channel",
-			"stream":  streamID,
+			"stream":  programID,
 			"channel": channelID,
 			"func":    "ChannelRun",
 			"call":    "ChannelGet",
@@ -102,11 +103,11 @@ func (svr *ServerST) ChannelRun(ctx context.Context, streamID string, channelID 
 	}
 
 	if ch.source.status != STREAM_ONLINE {
-		go svr.StreamRun(context.Background(), streamID, channelID)
+		go svr.StreamRun(context.Background(), programID, channelID)
 	} else {
 		log.WithFields(logrus.Fields{
 			"module":  "Channel",
-			"stream":  streamID,
+			"stream":  programID,
 			"channel": channelID,
 			"func":    "ChannelRun",
 			"call":    "StreamRun",
@@ -117,11 +118,11 @@ func (svr *ServerST) ChannelRun(ctx context.Context, streamID string, channelID 
 }
 
 //ChannelStop stop stream
-func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
+func (svr *ServerST) ChannelStop(programID string, channelID string) error {
 	// get stream channel
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	if streamID == "" && channelID == "" {
+	if programID == "" && channelID == "" {
 		for _, program := range svr.Programs {
 			for _, ch := range program.Channels {
 				//TODO: stop stream.
@@ -133,7 +134,7 @@ func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
 		return nil
 	} else {
 		if channelID != "" {
-			ch, ok := svr.Programs[streamID].Channels[channelID]
+			ch, ok := svr.Programs[programID].Channels[channelID]
 			if !ok {
 				return ErrorChannelNotFound
 			}
@@ -142,7 +143,7 @@ func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
 			//set stream status
 			ch.source.status = STREAM_OFFLINE
 		} else {
-			program, ok := svr.Programs[streamID]
+			program, ok := svr.Programs[programID]
 			if !ok {
 				return ErrorProgramNotFound
 			}
@@ -158,14 +159,14 @@ func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
 }
 
 // //ChannelCast broadcast stream av.Pkt
-// func (svr *ServerST) ChannelCast(streamID string, channelID string, avPkt *av.Packet) error {
+// func (svr *ServerST) ChannelCast(programID string, channelID string, avPkt *av.Packet) error {
 // 	svr.mutex.Lock()
-// 	ch, ok := svr.Programs[streamID].Channels[channelID]
+// 	ch, ok := svr.Programs[programID].Channels[channelID]
 // 	svr.mutex.Unlock()
 // 	if !ok || ch == nil {
 // 		log.WithFields(logrus.Fields{
 // 			"module":  "Channel",
-// 			"stream":  streamID,
+// 			"stream":  programID,
 // 			"channel": channelID,
 // 			"func":    "ChannelCast",
 // 			"call":    "ChannelGet",
@@ -185,11 +186,11 @@ func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
 // }
 
 //ChannelSDP codec storage or wait
-// func (svr *ServerST) ChannelSDP(streamID string, channelID string) ([]byte, error) {
+// func (svr *ServerST) ChannelSDP(programID string, channelID string) ([]byte, error) {
 // 	// why for 100 times?
 // 	for i := 0; i < 100; i++ {
 // 		svr.mutex.RLock()
-// 		tmp, ok := svr.Programs[streamID]
+// 		tmp, ok := svr.Programs[programID]
 // 		svr.mutex.RUnlock()
 // 		if !ok {
 // 			return nil, ErrorProgramNotFound
@@ -209,19 +210,19 @@ func (svr *ServerST) ChannelStop(streamID string, channelID string) error {
 // }
 
 //ChannelAdd add stream
-func (svr *ServerST) ChannelAdd(ctx context.Context, streamID string, channelID string, ch *ChannelST) error {
+func (svr *ServerST) ChannelAdd(ctx context.Context, programID string, channelID string, ch *ChannelST) error {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	ch, ok := svr.Programs[streamID].Channels[channelID]
+	ch, ok := svr.Programs[programID].Channels[channelID]
 	if !ok {
 		return ErrorChannelNotFound
 	}
 
-	svr.Programs[streamID].Channels[channelID] = ch
+	svr.Programs[programID].Channels[channelID] = ch
 
 	if !ch.OnDemand {
-		// go StreamServerRunStreamDo(ctx, streamID, channelID)
-		go svr.ChannelRun(ctx, streamID, channelID)
+		// go StreamServerRunStreamDo(ctx, programID, channelID)
+		go svr.ChannelRun(ctx, programID, channelID)
 	}
 
 	err := svr.SaveConfig()
@@ -232,22 +233,22 @@ func (svr *ServerST) ChannelAdd(ctx context.Context, streamID string, channelID 
 }
 
 //ChannelDelete stream
-func (svr *ServerST) ChannelDelete(streamID string, channelID string) error {
-	svr.ChannelStop(streamID, channelID)
+func (svr *ServerST) ChannelDelete(programID string, channelID string) error {
+	svr.ChannelStop(programID, channelID)
 
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[streamID].Channels[channelID]
+	_, ok := svr.Programs[programID].Channels[channelID]
 	if !ok {
 		return ErrorChannelNotFound
 	}
 
-	for i := 0; i < len(svr.Programs[streamID].Channels[channelID].clients); i++ {
-		svr.ClientDelete(streamID, channelID, i)
+	for cid, _ := range svr.Programs[programID].Channels[channelID].clients {
+		svr.ClientDelete(programID, channelID, cid)
 	}
-	svr.Programs[streamID].Channels[channelID].clients = nil
-	svr.Programs[streamID].Channels[channelID].hlsSegmentBuffer = nil
-	delete(svr.Programs[streamID].Channels, channelID)
+	svr.Programs[programID].Channels[channelID].clients = nil
+	svr.Programs[programID].Channels[channelID].hlsSegmentBuffer = nil
+	delete(svr.Programs[programID].Channels, channelID)
 
 	err := svr.SaveConfig()
 	if err != nil {
@@ -257,20 +258,20 @@ func (svr *ServerST) ChannelDelete(streamID string, channelID string) error {
 }
 
 //ChannelUpdate edit stream
-func (svr *ServerST) ChannelUpdate(ctx context.Context, streamID string, channelID string, ch *ChannelST) error {
-	svr.ChannelStop(streamID, channelID)
+func (svr *ServerST) ChannelUpdate(ctx context.Context, programID string, channelID string, ch *ChannelST) error {
+	svr.ChannelStop(programID, channelID)
 
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[streamID].Channels[channelID]
+	_, ok := svr.Programs[programID].Channels[channelID]
 	if !ok {
 		return ErrorChannelNotFound
 	}
 
-	svr.Programs[streamID].Channels[channelID] = ch
+	svr.Programs[programID].Channels[channelID] = ch
 
 	if !ch.OnDemand {
-		go svr.ChannelRun(ctx, streamID, channelID)
+		go svr.ChannelRun(ctx, programID, channelID)
 	}
 
 	err := svr.SaveConfig()
@@ -281,10 +282,10 @@ func (svr *ServerST) ChannelUpdate(ctx context.Context, streamID string, channel
 }
 
 //ChannelGet get stream
-func (svr *ServerST) ChannelGet(streamID string, channelID string) (*ChannelST, error) {
+func (svr *ServerST) ChannelGet(programID string, channelID string) (*ChannelST, error) {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	ch, ok := svr.Programs[streamID].Channels[channelID]
+	ch, ok := svr.Programs[programID].Channels[channelID]
 	if !ok {
 		return nil, ErrorChannelNotFound
 	}
@@ -292,10 +293,10 @@ func (svr *ServerST) ChannelGet(streamID string, channelID string) (*ChannelST, 
 }
 
 //ChannelExist check stream exist
-func (svr *ServerST) ChannelExist(streamID string, channelID string) bool {
+func (svr *ServerST) ChannelExist(programID string, channelID string) bool {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[streamID].Channels[channelID]
+	_, ok := svr.Programs[programID].Channels[channelID]
 	if !ok {
 		return false
 	}
@@ -326,7 +327,7 @@ func (svr *ServerST) ChannelCountRunning() int {
 	defer svr.mutex.RUnlock()
 	for _, st := range svr.Programs {
 		for _, ch := range st.Channels {
-			if ch.source.status == ONLINE {
+			if ch.source.status == STREAM_ONLINE {
 				cnt++
 			}
 		}

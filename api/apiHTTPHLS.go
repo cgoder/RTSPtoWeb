@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"bytes"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/cgoder/vdk/format/ts"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //HTTPAPIServerStreamHLSTS send client m3u8 play list
@@ -15,27 +16,27 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 	streamID := c.Param("uuid")
 	channelID := c.Param("channel")
 
-	if !Storage.StreamChannelExist(streamID, channelID) {
-		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
-		log.WithFields(logrus.Fields{
+	if !service.StreamChannelExist(streamID, channelID) {
+		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorProgramNotFound.Error()})
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSM3U8",
 			"call":    "StreamChannelExist",
-		}).Errorln(ErrorStreamNotFound.Error())
+		}).Errorln(service.ErrorProgramNotFound.Error())
 		return
 	}
 
 	c.Header("Content-Type", "application/x-mpegURL")
-	Storage.StreamChannelRun(context.Background(), streamID, channelID)
+	service.StreamChannelRun(context.Background(), streamID, channelID)
 
 	//If stream mode on_demand need wait ready segment's
 	for i := 0; i < 40; i++ {
-		index, seq, err := Storage.StreamHLSm3u8(streamID, channelID)
+		index, seq, err := service.StreamHLSm3u8(streamID, channelID)
 		if err != nil {
 			c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_hls",
 				"stream":  streamID,
 				"channel": channelID,
@@ -48,7 +49,7 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 			_, err := c.Writer.Write([]byte(index))
 			if err != nil {
 				c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "http_hls",
 					"stream":  streamID,
 					"channel": channelID,
@@ -69,22 +70,22 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 	streamID := c.Param("uuid")
 	channelID := c.Param("channel")
 
-	if !Storage.StreamChannelExist(streamID, channelID) {
-		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotFound.Error()})
-		log.WithFields(logrus.Fields{
+	if !service.StreamChannelExist(streamID, channelID) {
+		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorProgramNotFound.Error()})
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "StreamChannelExist",
-		}).Errorln(ErrorStreamNotFound.Error())
+		}).Errorln(service.ErrorProgramNotFound.Error())
 		return
 	}
 
-	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
+	codecs, err := service.StreamChannelCodecs(streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
@@ -100,7 +101,7 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 	err = Muxer.WriteHeader(codecs)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
@@ -109,10 +110,10 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	seqData, err := Storage.StreamHLSTS(streamID, channelID, stringToInt(c.Param("seq")))
+	seqData, err := service.StreamHLSTS(streamID, channelID, stringToInt(c.Param("seq")))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
@@ -122,14 +123,14 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		return
 	}
 	if len(seqData) == 0 {
-		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNotHLSSegments.Error()})
-		log.WithFields(logrus.Fields{
+		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorStreamNotHLSSegments.Error()})
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "seqData",
-		}).Errorln(ErrorStreamNotHLSSegments.Error())
+		}).Errorln(service.ErrorStreamNotHLSSegments.Error())
 		return
 	}
 	for _, v := range seqData {
@@ -137,7 +138,7 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		err = Muxer.WritePacket(*v)
 		if err != nil {
 			c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_hls",
 				"stream":  streamID,
 				"channel": channelID,
@@ -150,7 +151,7 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 	err = Muxer.WriteTrailer()
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
@@ -162,7 +163,7 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 	_, err = c.Writer.Write(outfile.Bytes())
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,

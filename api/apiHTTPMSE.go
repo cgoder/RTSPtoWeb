@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/cgoder/vdk/format/mp4f"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
 )
 
@@ -23,7 +23,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	// close websocket. and release goroutine.
 	defer func() {
 		_ = ws.Close()
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -32,7 +32,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Debugln("MSE Exit")
 
 		cancel()
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -43,23 +43,23 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 	log.Println("mse++++++")
 	// check stream status
-	// if !Storage.StreamChannelExist(streamID, channelID)
-	ch, err := Storage.StreamChannelGet(streamID, channelID)
+	// if !service.StreamChannelExist(streamID, channelID)
+	ch, err := service.StreamChannelGet(streamID, channelID)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "StreamChannelGet",
-		}).Errorln(ErrorStreamNotFound.Error())
+		}).Errorln(service.ErrorProgramNotFound.Error())
 		return
 	}
 
 	// streaming
-	err = Storage.StreamChannelRun(ctx, streamID, channelID)
+	err = service.StreamChannelRun(ctx, streamID, channelID)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -68,7 +68,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(err)
 		return
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module":  "http_mse",
 		"stream":  streamID,
 		"channel": channelID,
@@ -77,9 +77,9 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}).Debugln("play stream ---> ", streamID, channelID)
 
 	// get stream av.Codec
-	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
+	codecs, err := service.StreamChannelCodecs(streamID, channelID)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -90,9 +90,9 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}
 
 	// add client/player
-	cid, avChanR, err := Storage.ClientAdd(streamID, channelID, MSE)
+	cid, avChanR, err := service.ClientAdd(streamID, channelID, MSE)
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -101,18 +101,18 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(err.Error())
 		return
 	}
-	// log.Println("add client. clients: ", Storage.ClientCount(streamID, channelID))
-	// defer Storage.ClientDelete(streamID, cid, channelID)
+	// log.Println("add client. clients: ", service.ClientCount(streamID, channelID))
+	// defer service.ClientDelete(streamID, cid, channelID)
 	defer func() {
-		Storage.ClientDelete(streamID, cid, channelID)
-		// log.Println("del client. clients: ", Storage.ClientCount(streamID, channelID))
+		service.ClientDelete(streamID, cid, channelID)
+		// log.Println("del client. clients: ", service.ClientCount(streamID, channelID))
 	}()
 	log.Println("mse++++++ ok")
 
 	// set websocket timeout for write av.Pkt
 	err = ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -136,7 +136,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		muxerMSE := mp4f.NewMuxer(nil)
 		err = muxerMSE.WriteHeader(codecs)
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
@@ -148,7 +148,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		meta, init := muxerMSE.GetInit(codecs)
 		err = websocket.Message.Send(ws, append([]byte{9}, meta...))
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
@@ -159,7 +159,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}
 		err = websocket.Message.Send(ws, init)
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
@@ -172,7 +172,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "http_mse",
 					"stream":  streamID,
 					"channel": channelID,
@@ -181,7 +181,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				}).Debugln(ctx.Err())
 				return
 			case <-eofSignal:
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "http_mse",
 					"stream":  streamID,
 					"channel": channelID,
@@ -202,7 +202,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				t1 := time.Now()
 				ready, buf, err := muxerMSE.WritePacket(*avPkt, false)
 				if err != nil {
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"module":  "http_mse",
 						"stream":  streamID,
 						"channel": channelID,
@@ -218,7 +218,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				}
 				if ready {
 					if ch.Debug && avPkt.IsKeyFrame {
-						log.WithFields(logrus.Fields{
+						log.WithFields(log.Fields{
 							"module":  "http_mse",
 							"stream":  streamID,
 							"channel": channelID,
@@ -229,7 +229,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 					err := ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
 					if err != nil {
-						log.WithFields(logrus.Fields{
+						log.WithFields(log.Fields{
 							"module":  "http_mse",
 							"stream":  streamID,
 							"channel": channelID,
@@ -240,7 +240,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 					}
 					err = websocket.Message.Send(ws, buf)
 					if err != nil {
-						log.WithFields(logrus.Fields{
+						log.WithFields(log.Fields{
 							"module":  "http_mse",
 							"stream":  streamID,
 							"channel": channelID,
@@ -251,7 +251,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 					}
 				} else {
 					if ch.Debug && len(buf) > 0 {
-						log.WithFields(logrus.Fields{
+						log.WithFields(log.Fields{
 							"module":  "http_mse",
 							"stream":  streamID,
 							"channel": channelID,
@@ -271,7 +271,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,
@@ -284,7 +284,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			err := websocket.Message.Receive(ws, &message)
 			if err != nil {
 				if err == io.EOF {
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"module":  "http_mse",
 						"stream":  streamID,
 						"channel": channelID,
@@ -292,7 +292,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 						"call":    "WS.Receive",
 					}).Infoln("EXIT! WS got exit signal.", err)
 				} else {
-					log.WithFields(logrus.Fields{
+					log.WithFields(log.Fields{
 						"module":  "http_mse",
 						"stream":  streamID,
 						"channel": channelID,
@@ -304,7 +304,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 				return
 			}
 
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "http_mse",
 				"stream":  streamID,
 				"channel": channelID,

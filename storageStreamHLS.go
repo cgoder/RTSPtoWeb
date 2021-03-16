@@ -9,27 +9,27 @@ import (
 )
 
 //StreamHLSAdd add hls seq to buffer
-func (obj *StorageST) StreamHLSAdd(uuid string, channelID string, val []*av.Packet, dur time.Duration) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
+func (srv *ServerST) StreamHLSAdd(uuid string, channelID string, val []*av.Packet, dur time.Duration) {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+	if tmp, ok := srv.Streams[uuid]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			channelTmp.hlsSegmentNumber++
-			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = &Segment{data: val, dur: dur}
+			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = &service.Segment{data: val, dur: dur}
 			if len(channelTmp.hlsSegmentBuffer) >= 6 {
 				delete(channelTmp.hlsSegmentBuffer, channelTmp.hlsSegmentNumber-6-1)
 			}
 			tmp.Channels[channelID] = channelTmp
-			obj.Streams[uuid] = tmp
+			srv.Streams[uuid] = tmp
 		}
 	}
 }
 
 //StreamHLSm3u8 get hls m3u8 list
-func (obj *StorageST) StreamHLSm3u8(uuid string, channelID string) (string, int, error) {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
+func (srv *ServerST) StreamHLSm3u8(uuid string, channelID string) (string, int, error) {
+	srv.mutex.RLock()
+	defer srv.mutex.RUnlock()
+	if tmp, ok := srv.Streams[uuid]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			var out string
 			//TODO fix  it
@@ -48,32 +48,32 @@ func (obj *StorageST) StreamHLSm3u8(uuid string, channelID string) (string, int,
 			return out, count, nil
 		}
 	}
-	return "", 0, ErrorStreamNotFound
+	return "", 0, ErrorProgramNotFound
 }
 
 //StreamHLSTS send hls segment buffer to clients
-func (obj *StorageST) StreamHLSTS(streamID string, channelID string, seq int) ([]*av.Packet, error) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	ch, ok := obj.Streams[streamID].Channels[channelID]
+func (srv *ServerST) StreamHLSTS(streamID string, channelID string, seq int) ([]*av.Packet, error) {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+	ch, ok := srv.Streams[streamID].Channels[channelID]
 	if !ok {
-		return nil, ErrorStreamChannelNotFound
+		return nil, ErrorChannelNotFound
 	}
 
 	if tmp, ok := ch.hlsSegmentBuffer[seq]; ok {
 		return tmp.data, nil
 	} else {
-		return nil, ErrorStreamChannelNotFound
+		return nil, ErrorChannelNotFound
 	}
 }
 
 //StreamHLSFlush delete hls cache
-func (obj *StorageST) StreamHLSFlush(streamID string, channelID string) {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	ch, ok := obj.Streams[streamID].Channels[channelID]
+func (srv *ServerST) StreamHLSFlush(streamID string, channelID string) {
+	srv.mutex.Lock()
+	defer srv.mutex.Unlock()
+	ch, ok := srv.Streams[streamID].Channels[channelID]
 	if ok {
-		ch.hlsSegmentBuffer = make(map[int]*Segment)
+		ch.hlsSegmentBuffer = make(map[int]*service.Segment)
 		ch.hlsSegmentNumber = 0
 	}
 }

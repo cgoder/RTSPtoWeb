@@ -1,4 +1,4 @@
-package service
+package gss
 
 import (
 	"github.com/cgoder/vdk/av"

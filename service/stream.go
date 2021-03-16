@@ -1,11 +1,11 @@
-package service
+package gss
 
 import (
 	"context"
 	"time"
 
 	"github.com/cgoder/vdk/av"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -26,7 +26,7 @@ func (svr *ServerST) StreamCodecGet(streamID string, channelID string) ([]av.Cod
 	}
 
 	if ch.source.status == STREAM_ONLINE && ch.source.avCodecs != nil {
-		// log.WithFields(logrus.Fields{
+		// log.WithFields(log.Fields{
 		// 	"module":  "Stream",
 		// 	"stream":  streamID,
 		// 	"channel": channelID,
@@ -35,7 +35,7 @@ func (svr *ServerST) StreamCodecGet(streamID string, channelID string) ([]av.Cod
 		// }).Debugln("Got old codec!")
 		return ch.source.avCodecs, nil
 	} else {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -58,7 +58,7 @@ func (svr *ServerST) StreamCodecGet(streamID string, channelID string) ([]av.Cod
 		}
 
 		t2 := time.Now().UTC().Sub(t1)
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
@@ -122,7 +122,7 @@ func (svr *ServerST) StreamRun(ctx context.Context, streamID string, channelID s
 	defer svr.mutex.Unlock()
 	ch, ok := svr.Programs[streamID].Channels[channelID]
 	if !ok {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "streaming",
 			"stream":  streamID,
 			"channel": channelID,
@@ -134,7 +134,7 @@ func (svr *ServerST) StreamRun(ctx context.Context, streamID string, channelID s
 
 	// channle is streaming?
 	if ch.source.status == STREAM_ONLINE {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "streaming",
 			"stream":  streamID,
 			"channel": channelID,
@@ -147,7 +147,7 @@ func (svr *ServerST) StreamRun(ctx context.Context, streamID string, channelID s
 
 	ch.source.status = STREAM_ONLINE
 
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module":  "core",
 		"stream":  streamID,
 		"channel": channelID,
@@ -156,7 +156,7 @@ func (svr *ServerST) StreamRun(ctx context.Context, streamID string, channelID s
 	}).Infoln("Run stream-> ", streamID, channelID)
 
 	// real stream run
-	go readPktByProtocol(ctx, streamID, channelID, ch)
+	go svr.readPktByProtocol(ctx, streamID, channelID, ch)
 
 	return nil
 

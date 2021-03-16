@@ -1,4 +1,4 @@
-package service
+package gss
 
 import (
 	"sync"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/cgoder/vdk/av"
 	"github.com/cgoder/vdk/av/pubsub"
-	"github.com/sirupsen/logrus"
 )
 
 //player type
@@ -43,15 +42,15 @@ type ServerST struct {
 
 //ConfigST server storage section
 type ConfigST struct {
-	Debug        bool         `json:"debug" groups:"api,config"`
-	LogLevel     logrus.Level `json:"log_level" groups:"api,config"`
-	HTTPDemo     bool         `json:"http_demo" groups:"api,config"`
-	HTTPDebug    bool         `json:"http_debug" groups:"api,config"`
-	HTTPLogin    string       `json:"http_login" groups:"api,config"`
-	HTTPPassword string       `json:"http_password" groups:"api,config"`
-	HTTPDir      string       `json:"http_dir" groups:"api,config"`
-	HTTPPort     string       `json:"http_port" groups:"api,config"`
-	RTSPPort     string       `json:"rtsp_port" groups:"api,config"`
+	Debug        bool   `json:"debug" groups:"api,config"`
+	LogLevel     string `json:"log_level" groups:"api,config"`
+	HTTPDemo     bool   `json:"http_demo" groups:"api,config"`
+	HTTPDebug    bool   `json:"http_debug" groups:"api,config"`
+	HTTPLogin    string `json:"http_login" groups:"api,config"`
+	HTTPPassword string `json:"http_password" groups:"api,config"`
+	HTTPDir      string `json:"http_dir" groups:"api,config"`
+	HTTPPort     string `json:"http_port" groups:"api,config"`
+	RTSPPort     string `json:"rtsp_port" groups:"api,config"`
 }
 
 //ProgramST stream storage section

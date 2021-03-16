@@ -1,3 +1,3 @@
-package main
+package api
 
 //TODO add to next version

@@ -1,4 +1,4 @@
-package service
+package gss
 
 import (
 	"context"
@@ -9,15 +9,15 @@ import (
 	"github.com/cgoder/vdk/av"
 	"github.com/cgoder/vdk/format/rtmp"
 	"github.com/cgoder/vdk/format/rtspv2"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 //readPktByProtocol read av.Pkt from av.Source.
 func (svr *ServerST) readPktByProtocol(ctx context.Context, streamID string, channelID string, channel *ChannelST) error {
 	if strings.HasPrefix(channel.URL, "rtmp://") {
-		_, err := streamRtmp(ctx, streamID, channelID, channel)
+		_, err := svr.streamRtmp(ctx, streamID, channelID, channel)
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -27,9 +27,9 @@ func (svr *ServerST) readPktByProtocol(ctx context.Context, streamID string, cha
 		}
 		return err
 	} else if strings.HasPrefix(channel.URL, "rtsp://") {
-		_, err := streamRtsp(ctx, streamID, channelID, channel)
+		_, err := svr.streamRtsp(ctx, streamID, channelID, channel)
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -39,7 +39,7 @@ func (svr *ServerST) readPktByProtocol(ctx context.Context, streamID string, cha
 		}
 		return err
 	} else {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -61,7 +61,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 		RTMPConn, err = rtmp.Dial(channel.URL)
 
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -70,7 +70,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 			}).Errorln("RTMP Dial ---> ", JsonFormat(channel.URL), err)
 			return err
 		}
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -82,7 +82,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 		t1 := time.Now().Local().UTC()
 		streams, err := RTMPConn.Streams()
 		if err != nil {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -97,7 +97,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 			svr.StreamCodecUpdate(streamID, channelID, streams, nil)
 			channel.cond.Broadcast()
 
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -105,7 +105,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 				"call":    "RTMPConn.Streams",
 			}).Debugln("rtmp get stream codec DONE! time: ", time.Now().Local().UTC().Sub(t1).String())
 		} else {
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -115,7 +115,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 			return ErrorChannelCodecNotFound
 		}
 
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -125,7 +125,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 
 		return nil
 	}(); err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -156,7 +156,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 	for {
 		select {
 		// case <-ctx.Done():
-		// 	log.WithFields(logrus.Fields{
+		// 	log.WithFields(log.Fields{
 		// 		"module":  "core",
 		// 		"stream":  streamID,
 		// 		"channel": channelID,
@@ -168,7 +168,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 		case <-checkClients.C:
 			cCnt := svr.ClientCount(streamID, channelID)
 			if cCnt == 0 {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -184,7 +184,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 				<-checkClients.C
 			}
 			if b := checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second); !b {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -206,7 +206,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 		default:
 			avPkt, err := RTMPConn.ReadPacket()
 			if err != nil {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -243,7 +243,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 	// rtsp client dial
 	RTSPClient, err := rtspv2.Dial(rtspv2.RTSPClientOptions{URL: channel.URL, DisableAudio: false, DialTimeout: 3 * time.Second, ReadWriteTimeout: 5 * time.Second, Debug: false, OutgoingProxy: false})
 	if err != nil {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -252,7 +252,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 		}).Errorln("RTSPClient.Dial fail. ", err)
 		return 0, err
 	}
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module":  "core",
 		"stream":  streamID,
 		"channel": channelID,
@@ -266,7 +266,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 		// channel.updated <- true
 		channel.cond.Broadcast()
 
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -274,7 +274,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 			"call":    "rtspv2.Dial",
 		}).Debugln("rtsp get stream codec DONE! time: ", time.Now().Local().UTC().Sub(t1).String())
 	} else {
-		log.WithFields(logrus.Fields{
+		log.WithFields(log.Fields{
 			"module":  "core",
 			"stream":  streamID,
 			"channel": channelID,
@@ -284,7 +284,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 		return 0, ErrorChannelCodecNotFound
 	}
 
-	log.WithFields(logrus.Fields{
+	log.WithFields(log.Fields{
 		"module":  "core",
 		"stream":  streamID,
 		"channel": channelID,
@@ -312,7 +312,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 	for {
 		select {
 		// case <-ctx.Done():
-		// 	log.WithFields(logrus.Fields{
+		// 	log.WithFields(log.Fields{
 		// 		"module":  "core",
 		// 		"stream":  streamID,
 		// 		"channel": channelID,
@@ -323,7 +323,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 		case <-checkClients.C:
 			cCnt := svr.ClientCount(streamID, channelID)
 			if cCnt == 0 {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -339,7 +339,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 				<-checkClients.C
 			}
 			if b := checkClients.Reset(time.Duration(timeoutClientCheck) * time.Second); !b {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -361,7 +361,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 			switch signals {
 			case rtspv2.SignalCodecUpdate:
 				svr.StreamCodecUpdate(streamID, channelID, RTSPClient.CodecData, RTSPClient.SDPRaw)
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -369,7 +369,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 					"call":    "RTSPClient.Signals",
 				}).Debugln("Stream codec update. ")
 			case rtspv2.SignalStreamRTPStop:
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,
@@ -410,7 +410,7 @@ func writePktToClients(clients map[string]*ClientST, avPkt *av.Packet) {
 					// log.Println("w2c ", avPkt.Idx, avPkt.IsKeyFrame)
 					client.outgoingAVPacket <- avPkt
 				} else {
-					// log.WithFields(logrus.Fields{
+					// log.WithFields(log.Fields{
 					// 	"module": "core",
 					// 	// "stream":  streamID,
 					// 	// "channel": channelID,
@@ -436,7 +436,7 @@ func readPktToQueue(ctx context.Context, streamID string, channelID string, chan
 	for {
 		select {
 		case <-ctx.Done():
-			log.WithFields(logrus.Fields{
+			log.WithFields(log.Fields{
 				"module":  "core",
 				"stream":  streamID,
 				"channel": channelID,
@@ -448,7 +448,7 @@ func readPktToQueue(ctx context.Context, streamID string, channelID string, chan
 		// case <-checkClients.C:
 		// 	cCnt := Svr.ClientCount(streamID, channelID)
 		// 	if cCnt == 0 {
-		// 		log.WithFields(logrus.Fields{
+		// 		log.WithFields(log.Fields{
 		// 			"module":  "core",
 		// 			"stream":  streamID,
 		// 			"channel": channelID,
@@ -476,7 +476,7 @@ func readPktToQueue(ctx context.Context, streamID string, channelID string, chan
 		default:
 			packet, err := cursor.ReadPacket()
 			if err != nil {
-				log.WithFields(logrus.Fields{
+				log.WithFields(log.Fields{
 					"module":  "core",
 					"stream":  streamID,
 					"channel": channelID,

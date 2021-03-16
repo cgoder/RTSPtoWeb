@@ -1,4 +1,4 @@
-package service
+package gss
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ func JsonFormat(v interface{}) string {
 	return out.String()
 }
 
+//DebugRuntime debug info
 func DebugRuntime() {
 	if err := agent.Listen(agent.Options{
 		Addr:            "0.0.0.0:8048",

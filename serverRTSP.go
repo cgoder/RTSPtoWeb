@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -264,7 +265,7 @@ func RTSPServerClientHandle(conn net.Conn) {
 					"channel": channel,
 					"func":    "handleRTSPServerRequest",
 					"call":    "StreamChannelExist",
-				}).Errorln(ErrorStreamNotFound.Error())
+				}).Errorln(ErrorProgramNotFound.Error())
 				err = RTSPServerClientResponse(uuid, channel, conn, 404, map[string]string{"CSeq": strconv.Itoa(cSEQ)})
 				if err != nil {
 					return

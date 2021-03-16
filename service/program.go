@@ -1,4 +1,4 @@
-package service
+package gss
 
 import "context"
 
@@ -70,8 +70,8 @@ func (svr *ServerST) ProgramDelete(uuid string) error {
 
 	//stop all stream
 	svr.ChannelStop(progID, "")
-	for i := 0; i < len(svr.Programs[progID].Channels); i++ {
-		svr.ChannelDelete(progID, i)
+	for chID, _ := range svr.Programs[progID].Channels {
+		svr.ChannelDelete(progID, chID)
 	}
 	svr.Programs[progID].Channels = nil
 	delete(svr.Programs, uuid)
