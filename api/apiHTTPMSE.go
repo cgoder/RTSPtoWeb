@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/cgoder/deepeyes/gss"
 	"github.com/cgoder/vdk/format/mp4f"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -43,8 +44,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 
 	log.Println("mse++++++")
 	// check stream status
-	// if !service.StreamChannelExist(streamID, channelID)
-	ch, err := service.StreamChannelGet(streamID, channelID)
+	ch, err := service.ChannelGet(streamID, channelID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -52,12 +52,12 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "StreamChannelGet",
-		}).Errorln(service.ErrorProgramNotFound.Error())
+		}).Errorln(gss.ErrorProgramNotFound.Error())
 		return
 	}
 
 	// streaming
-	err = service.StreamChannelRun(ctx, streamID, channelID)
+	err = service.ChannelRun(ctx, streamID, channelID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -77,7 +77,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}).Debugln("play stream ---> ", streamID, channelID)
 
 	// get stream av.Codec
-	codecs, err := service.StreamChannelCodecs(streamID, channelID)
+	codecs, err := service.StreamCodecGet(streamID, channelID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -90,7 +90,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	}
 
 	// add client/player
-	cid, avChanR, err := service.ClientAdd(streamID, channelID, MSE)
+	cid, avChanR, err := service.ClientAdd(streamID, channelID, gss.PLAY_MSE)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -104,7 +104,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	// log.Println("add client. clients: ", service.ClientCount(streamID, channelID))
 	// defer service.ClientDelete(streamID, cid, channelID)
 	defer func() {
-		service.ClientDelete(streamID, cid, channelID)
+		service.ClientDelete(streamID, channelID, cid)
 		// log.Println("del client. clients: ", service.ClientCount(streamID, channelID))
 	}()
 	log.Println("mse++++++ ok")

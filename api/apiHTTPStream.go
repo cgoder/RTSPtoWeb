@@ -1,18 +1,19 @@
 package api
 
 import (
+	"github.com/cgoder/deepeyes/gss"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 )
 
 //HTTPAPIServerStreams function return stream list
 func HTTPAPIServerStreams(c *gin.Context) {
-	c.IndentedJSON(200, Message{Status: 1, Payload: service.StreamsList()})
+	c.IndentedJSON(200, Message{Status: 1, Payload: service.ProgramList()})
 }
 
 //HTTPAPIServerStreamsMultiControlAdd function add new stream's
 func HTTPAPIServerStreamsMultiControlAdd(c *gin.Context) {
-	var payload service.StorageST
+	var payload gss.ServerST
 	err := c.BindJSON(&payload)
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -23,19 +24,19 @@ func HTTPAPIServerStreamsMultiControlAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	if payload.Streams == nil || len(payload.Streams) < 1 {
-		c.IndentedJSON(400, Message{Status: 0, Payload: service.ErrorStreamsLen0.Error()})
+	if payload.Programs == nil || len(payload.Programs) < 1 {
+		c.IndentedJSON(400, Message{Status: 0, Payload: gss.ErrorStreamsLen0.Error()})
 		log.WithFields(log.Fields{
 			"module": "http_stream",
 			"func":   "HTTPAPIServerStreamsMultiControlAdd",
 			"call":   "len(payload)",
-		}).Errorln(service.ErrorStreamsLen0.Error())
+		}).Errorln(gss.ErrorStreamsLen0.Error())
 		return
 	}
 	var resp = make(map[string]Message)
 	var FoundError bool
-	for k, v := range payload.Streams {
-		err = service.StreamAdd(k, v)
+	for k, v := range service.Programs {
+		err = service.ProgramAdd(k, v)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"module": "http_stream",
@@ -46,7 +47,7 @@ func HTTPAPIServerStreamsMultiControlAdd(c *gin.Context) {
 			resp[k] = Message{Status: 0, Payload: err.Error()}
 			FoundError = true
 		} else {
-			resp[k] = Message{Status: 1, Payload: service.Success}
+			resp[k] = Message{Status: 1, Payload: gss.Success}
 		}
 	}
 	if FoundError {
@@ -70,18 +71,18 @@ func HTTPAPIServerStreamsMultiControlDelete(c *gin.Context) {
 		return
 	}
 	if len(payload) < 1 {
-		c.IndentedJSON(400, Message{Status: 0, Payload: service.ErrorStreamsLen0.Error()})
+		c.IndentedJSON(400, Message{Status: 0, Payload: gss.ErrorStreamsLen0.Error()})
 		log.WithFields(log.Fields{
 			"module": "http_stream",
 			"func":   "HTTPAPIServerStreamsMultiControlDelete",
 			"call":   "len(payload)",
-		}).Errorln(service.ErrorStreamsLen0.Error())
+		}).Errorln(gss.ErrorStreamsLen0.Error())
 		return
 	}
 	var resp = make(map[string]Message)
 	var FoundError bool
 	for _, key := range payload {
-		err := service.StreamDelete(key)
+		err := service.ProgramDelete(key)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"module": "http_stream",
@@ -92,7 +93,7 @@ func HTTPAPIServerStreamsMultiControlDelete(c *gin.Context) {
 			resp[key] = Message{Status: 0, Payload: err.Error()}
 			FoundError = true
 		} else {
-			resp[key] = Message{Status: 1, Payload: service.Success}
+			resp[key] = Message{Status: 1, Payload: gss.Success}
 		}
 	}
 	if FoundError {
@@ -104,7 +105,7 @@ func HTTPAPIServerStreamsMultiControlDelete(c *gin.Context) {
 
 //HTTPAPIServerStreamAdd function add new stream
 func HTTPAPIServerStreamAdd(c *gin.Context) {
-	var payload service.ProgramST
+	var payload gss.ProgramST
 	err := c.BindJSON(&payload)
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -116,7 +117,7 @@ func HTTPAPIServerStreamAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = service.StreamAdd(c.Param("uuid"), &payload)
+	err = service.ProgramAdd(c.Param("uuid"), &payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -127,12 +128,12 @@ func HTTPAPIServerStreamAdd(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	c.IndentedJSON(200, Message{Status: 1, Payload: service.Success})
+	c.IndentedJSON(200, Message{Status: 1, Payload: gss.Success})
 }
 
 //HTTPAPIServerStreamEdit function edit stream
 func HTTPAPIServerStreamEdit(c *gin.Context) {
-	var payload service.ProgramST
+	var payload gss.ProgramST
 	err := c.BindJSON(&payload)
 	if err != nil {
 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
@@ -144,7 +145,7 @@ func HTTPAPIServerStreamEdit(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	err = service.StreamEdit(c.Param("uuid"), &payload)
+	err = service.ProgramUpdate(c.Param("uuid"), &payload)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -155,12 +156,12 @@ func HTTPAPIServerStreamEdit(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	c.IndentedJSON(200, Message{Status: 1, Payload: service.Success})
+	c.IndentedJSON(200, Message{Status: 1, Payload: gss.Success})
 }
 
 //HTTPAPIServerStreamDelete function delete stream
 func HTTPAPIServerStreamDelete(c *gin.Context) {
-	err := service.StreamDelete(c.Param("uuid"))
+	err := service.ProgramDelete(c.Param("uuid"))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -171,12 +172,12 @@ func HTTPAPIServerStreamDelete(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	c.IndentedJSON(200, Message{Status: 1, Payload: service.Success})
+	c.IndentedJSON(200, Message{Status: 1, Payload: gss.Success})
 }
 
 //HTTPAPIServerStreamDelete function reload stream
 func HTTPAPIServerStreamReload(c *gin.Context) {
-	err := service.StreamReload(c.Param("uuid"))
+	err := service.ProgramReload(c.Param("uuid"))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -187,12 +188,12 @@ func HTTPAPIServerStreamReload(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	c.IndentedJSON(200, Message{Status: 1, Payload: service.Success})
+	c.IndentedJSON(200, Message{Status: 1, Payload: gss.Success})
 }
 
 //HTTPAPIServerStreamInfo function return stream info struct
 func HTTPAPIServerStreamInfo(c *gin.Context) {
-	info, err := service.StreamInfo(c.Param("uuid"))
+	info, err := service.ProgramGet(c.Param("uuid"))
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{

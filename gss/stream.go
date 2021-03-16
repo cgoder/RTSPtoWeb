@@ -36,7 +36,7 @@ func (svr *ServerST) StreamCodecGet(streamID string, channelID string) ([]av.Cod
 		return ch.source.avCodecs, nil
 	} else {
 		log.WithFields(log.Fields{
-			"module":  "http_mse",
+			"module":  "stream",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "StreamCodecGet",
@@ -59,7 +59,7 @@ func (svr *ServerST) StreamCodecGet(streamID string, channelID string) ([]av.Cod
 
 		t2 := time.Now().UTC().Sub(t1)
 		log.WithFields(log.Fields{
-			"module":  "http_mse",
+			"module":  "stream",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "StreamCodecGet",

@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/cgoder/deepeyes/gss"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/websocket"
@@ -20,7 +21,7 @@ var service *gss.ServerST
 
 //HTTPAPIServer start http server routes
 func HTTPAPIServer(srv *gss.ServerST) {
-	if service == nil {
+	if srv == nil {
 		log.WithFields(log.Fields{
 			"module": "api",
 			"func":   "HTTPAPIServer",
@@ -127,9 +128,9 @@ func HTTPAPIServer(srv *gss.ServerST) {
 func HTTPAPIServerIndex(c *gin.Context) {
 	c.HTML(http.StatusOK, "index.tmpl", gin.H{
 		"port":           service.ServerHTTPPort(),
-		"streams":        service.Streams,
-		"channelCnt":     service.StreamChannelCount(),
-		"channelRunning": service.StreamChannelRunning(),
+		"streams":        service.Programs,
+		"channelCnt":     service.ChannelCount(),
+		"channelRunning": service.ChannelCountRunning(),
 		"clients":        service.ClientCountAll(),
 		"version":        time.Now().String(),
 		"page":           "index",
@@ -140,7 +141,7 @@ func HTTPAPIServerIndex(c *gin.Context) {
 func HTTPAPIServerDocumentation(c *gin.Context) {
 	c.HTML(http.StatusOK, "documentation.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "documentation",
 	})
@@ -149,7 +150,7 @@ func HTTPAPIServerDocumentation(c *gin.Context) {
 func HTTPAPIStreamList(c *gin.Context) {
 	c.HTML(http.StatusOK, "stream_list.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "stream_list",
 	})
@@ -157,7 +158,7 @@ func HTTPAPIStreamList(c *gin.Context) {
 func HTTPAPIPageLogin(c *gin.Context) {
 	c.HTML(http.StatusOK, "login.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "login",
 	})
@@ -166,7 +167,7 @@ func HTTPAPIPageLogin(c *gin.Context) {
 func HTTPAPIPlayHls(c *gin.Context) {
 	c.HTML(http.StatusOK, "play_hls.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "play_hls",
 		"uuid":    c.Param("uuid"),
@@ -176,7 +177,7 @@ func HTTPAPIPlayHls(c *gin.Context) {
 func HTTPAPIPlayMse(c *gin.Context) {
 	c.HTML(http.StatusOK, "play_mse.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "play_mse",
 		"uuid":    c.Param("uuid"),
@@ -186,7 +187,7 @@ func HTTPAPIPlayMse(c *gin.Context) {
 func HTTPAPIPlayWebrtc(c *gin.Context) {
 	c.HTML(http.StatusOK, "play_webrtc.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "play_webrtc",
 		"uuid":    c.Param("uuid"),
@@ -196,7 +197,7 @@ func HTTPAPIPlayWebrtc(c *gin.Context) {
 func HTTPAPIAddStream(c *gin.Context) {
 	c.HTML(http.StatusOK, "add_stream.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "add_stream",
 	})
@@ -204,7 +205,7 @@ func HTTPAPIAddStream(c *gin.Context) {
 func HTTPAPIEditStream(c *gin.Context) {
 	c.HTML(http.StatusOK, "edit_stream.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "edit_stream",
 		"uuid":    c.Param("uuid"),
@@ -214,7 +215,7 @@ func HTTPAPIEditStream(c *gin.Context) {
 func HTTPAPIMultiview(c *gin.Context) {
 	c.HTML(http.StatusOK, "multiview.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"page":    "multiview",
 	})
@@ -240,14 +241,16 @@ func HTTPAPIFullScreenMultiView(c *gin.Context) {
 			"call":   "BindJSON",
 		}).Errorln(err.Error())
 	}
+
 	log.WithFields(log.Fields{
 		"module": "http_page",
 		"func":   "HTTPAPIFullScreenMultiView",
 		"call":   "Options",
 	}).Debugln(createParams)
+
 	c.HTML(http.StatusOK, "fullscreenmulti.tmpl", gin.H{
 		"port":    service.ServerHTTPPort(),
-		"streams": service.Streams,
+		"streams": service.Programs,
 		"version": time.Now().String(),
 		"options": createParams,
 		"page":    "fullscreenmulti",

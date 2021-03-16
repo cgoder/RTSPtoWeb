@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/cgoder/deepeyes/gss"
 	webrtc "github.com/cgoder/vdk/format/webrtcv3"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -38,22 +39,22 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 	// }()
 
 	// check stream status
-	// if !Storage.StreamChannelExist(streamID, channelID)
-	ch, err := Storage.StreamChannelGet(streamID, channelID)
+
+	ch, err := service.ChannelGet(streamID, channelID)
 	if err != nil {
-		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorProgramNotFound.Error()})
+		c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorProgramNotFound.Error()})
 		log.WithFields(log.Fields{
 			"module":  "http_webrtc",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamWebRTC",
 			"call":    "StreamChannelGet",
-		}).Errorln(ErrorProgramNotFound.Error())
+		}).Errorln(gss.ErrorProgramNotFound.Error())
 		return
 	}
 
 	// streaming
-	err = Storage.StreamChannelRun(ctx, streamID, channelID)
+	err = service.ChannelRun(ctx, streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -74,7 +75,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 	}).Debugln("play stream ---> ", streamID, channelID)
 
 	// get stream av.Codec
-	codecs, err := Storage.StreamChannelCodecs(streamID, channelID)
+	codecs, err := service.StreamCodecGet(streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -120,7 +121,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 	// go recvFrame(ctx, streamID, channelID, c, eofSignal)
 	go func() {
 		// add client/player
-		cid, avChanR, err := Storage.ClientAdd(streamID, channelID, WEBRTC)
+		cid, avChanR, err := service.ClientAdd(streamID, channelID, gss.PLAY_WEBRTC)
 		if err != nil {
 			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
 			log.WithFields(log.Fields{
@@ -134,7 +135,7 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 		}
 		defer func() {
 			// c.IndentedJSON(200, Message{Status: 0, Payload: err.Error()})
-			Storage.ClientDelete(streamID, cid, channelID)
+			service.ClientDelete(streamID, channelID, cid)
 			log.WithFields(log.Fields{
 				"module":  "http_webrtc",
 				"stream":  streamID,
@@ -171,14 +172,14 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 			// 	}).Debugln("got eof signal.")
 			// 	return
 			case <-noVideo.C:
-				c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNoVideo.Error()})
+				c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorStreamNoVideo.Error()})
 				log.WithFields(log.Fields{
 					"module":  "http_webrtc",
 					"stream":  streamID,
 					"channel": channelID,
 					"func":    "HTTPAPIServerStreamWebRTC",
 					"call":    "ErrorStreamNoVideo",
-				}).Errorln(ErrorStreamNoVideo.Error())
+				}).Errorln(gss.ErrorStreamNoVideo.Error())
 				return
 			case avPkt := <-avChanR:
 				// log.Println("got avPkt. ", avPkt.IsKeyFrame, len(avPkt.Data))
@@ -202,8 +203,8 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 					}).Errorln(err.Error())
 					return
 				}
-				debug = ch.Debug
-				if true && avPkt.IsKeyFrame {
+
+				if ch.Debug && avPkt.IsKeyFrame {
 					log.WithFields(log.Fields{
 						"module":  "http_webrtc",
 						"stream":  streamID,
@@ -219,110 +220,110 @@ func HTTPAPIServerStreamWebRTC(c *gin.Context) {
 
 }
 
-func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
-	// log.Println("enter webrtc ....................")
+// func HTTPAPIServerStreamWebRTC_orignal(c *gin.Context) {
+// 	// log.Println("enter webrtc ....................")
 
-	if !Storage.StreamChannelExist(c.Param("uuid"), c.Param("channel")) {
-		c.IndentedJSON(500, Message{Status: 0, Payload: ErrorProgramNotFound.Error()})
-		log.WithFields(log.Fields{
-			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
-			"func":    "HTTPAPIServerStreamWebRTC",
-			"call":    "StreamChannelExist",
-		}).Errorln(ErrorProgramNotFound.Error())
-		return
-	}
-	Storage.StreamChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
-	codecs, err := Storage.StreamChannelCodecs(c.Param("uuid"), c.Param("channel"))
-	if err != nil {
-		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(log.Fields{
-			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
-			"func":    "HTTPAPIServerStreamWebRTC",
-			"call":    "StreamCodecs",
-		}).Errorln(err.Error())
-		return
-	}
-	muxerWebRTC := webrtc.NewMuxer(webrtc.Options{})
-	// log.Println("webrtc headr data ->>>> ",c.PostForm("data"))
-	answer, err := muxerWebRTC.WriteHeader(codecs, c.PostForm("data"))
-	if err != nil {
-		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(log.Fields{
-			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
-			"func":    "HTTPAPIServerStreamWebRTC",
-			"call":    "WriteHeader",
-		}).Errorln(err.Error())
-		return
-	}
-	_, err = c.Writer.Write([]byte(answer))
-	if err != nil {
-		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
-		log.WithFields(log.Fields{
-			"module":  "http_webrtc",
-			"stream":  c.Param("uuid"),
-			"channel": c.Param("channel"),
-			"func":    "HTTPAPIServerStreamWebRTC",
-			"call":    "Write",
-		}).Errorln(err.Error())
-		return
-	}
-	go func() {
-		cid, ch, err := Storage.ClientAdd(c.Param("uuid"), c.Param("channel"), WEBRTC)
-		if err != nil {
-			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
-			log.WithFields(log.Fields{
-				"module":  "http_webrtc",
-				"stream":  c.Param("uuid"),
-				"channel": c.Param("channel"),
-				"func":    "HTTPAPIServerStreamWebRTC",
-				"call":    "ClientAdd",
-			}).Errorln(err.Error())
-			return
-		}
-		defer Storage.ClientDelete(c.Param("uuid"), cid, c.Param("channel"))
-		var videoStart bool
-		noVideo := time.NewTimer(10 * time.Second)
-		defer noVideo.Stop()
-		for {
-			select {
-			case <-noVideo.C:
-				c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNoVideo.Error()})
-				log.WithFields(log.Fields{
-					"module":  "http_webrtc",
-					"stream":  c.Param("uuid"),
-					"channel": c.Param("channel"),
-					"func":    "HTTPAPIServerStreamWebRTC",
-					"call":    "ErrorStreamNoVideo",
-				}).Errorln(ErrorStreamNoVideo.Error())
-				return
-			case pck := <-ch:
-				if pck.IsKeyFrame {
-					noVideo.Reset(10 * time.Second)
-					videoStart = true
-				}
-				if !videoStart {
-					continue
-				}
-				err = muxerWebRTC.WritePacket(*pck)
-				if err != nil {
-					log.WithFields(log.Fields{
-						"module":  "http_webrtc",
-						"stream":  c.Param("uuid"),
-						"channel": c.Param("channel"),
-						"func":    "HTTPAPIServerStreamWebRTC",
-						"call":    "WritePacket",
-					}).Errorln(err.Error())
-					return
-				}
-			}
-		}
-	}()
+// 	if !service.ChannelExist(c.Param("uuid"), c.Param("channel")) {
+// 		c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorProgramNotFound.Error()})
+// 		log.WithFields(log.Fields{
+// 			"module":  "http_webrtc",
+// 			"stream":  c.Param("uuid"),
+// 			"channel": c.Param("channel"),
+// 			"func":    "HTTPAPIServerStreamWebRTC",
+// 			"call":    "StreamChannelExist",
+// 		}).Errorln(gss.ErrorProgramNotFound.Error())
+// 		return
+// 	}
+// 	service.ChannelRun(context.Background(), c.Param("uuid"), c.Param("channel"))
+// 	codecs, err := service.StreamCodecGet(c.Param("uuid"), c.Param("channel"))
+// 	if err != nil {
+// 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
+// 		log.WithFields(log.Fields{
+// 			"module":  "http_webrtc",
+// 			"stream":  c.Param("uuid"),
+// 			"channel": c.Param("channel"),
+// 			"func":    "HTTPAPIServerStreamWebRTC",
+// 			"call":    "StreamCodecs",
+// 		}).Errorln(err.Error())
+// 		return
+// 	}
+// 	muxerWebRTC := webrtc.NewMuxer(webrtc.Options{})
+// 	// log.Println("webrtc headr data ->>>> ",c.PostForm("data"))
+// 	answer, err := muxerWebRTC.WriteHeader(codecs, c.PostForm("data"))
+// 	if err != nil {
+// 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
+// 		log.WithFields(log.Fields{
+// 			"module":  "http_webrtc",
+// 			"stream":  c.Param("uuid"),
+// 			"channel": c.Param("channel"),
+// 			"func":    "HTTPAPIServerStreamWebRTC",
+// 			"call":    "WriteHeader",
+// 		}).Errorln(err.Error())
+// 		return
+// 	}
+// 	_, err = c.Writer.Write([]byte(answer))
+// 	if err != nil {
+// 		c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
+// 		log.WithFields(log.Fields{
+// 			"module":  "http_webrtc",
+// 			"stream":  c.Param("uuid"),
+// 			"channel": c.Param("channel"),
+// 			"func":    "HTTPAPIServerStreamWebRTC",
+// 			"call":    "Write",
+// 		}).Errorln(err.Error())
+// 		return
+// 	}
+// 	go func() {
+// 		cid, ch, err := service.ClientAdd(c.Param("uuid"), c.Param("channel"), WEBRTC)
+// 		if err != nil {
+// 			c.IndentedJSON(400, Message{Status: 0, Payload: err.Error()})
+// 			log.WithFields(log.Fields{
+// 				"module":  "http_webrtc",
+// 				"stream":  c.Param("uuid"),
+// 				"channel": c.Param("channel"),
+// 				"func":    "HTTPAPIServerStreamWebRTC",
+// 				"call":    "ClientAdd",
+// 			}).Errorln(err.Error())
+// 			return
+// 		}
+// 		defer service.ClientDelete(c.Param("uuid"), cid, c.Param("channel"))
+// 		var videoStart bool
+// 		noVideo := time.NewTimer(10 * time.Second)
+// 		defer noVideo.Stop()
+// 		for {
+// 			select {
+// 			case <-noVideo.C:
+// 				c.IndentedJSON(500, Message{Status: 0, Payload: ErrorStreamNoVideo.Error()})
+// 				log.WithFields(log.Fields{
+// 					"module":  "http_webrtc",
+// 					"stream":  c.Param("uuid"),
+// 					"channel": c.Param("channel"),
+// 					"func":    "HTTPAPIServerStreamWebRTC",
+// 					"call":    "ErrorStreamNoVideo",
+// 				}).Errorln(ErrorStreamNoVideo.Error())
+// 				return
+// 			case pck := <-ch:
+// 				if pck.IsKeyFrame {
+// 					noVideo.Reset(10 * time.Second)
+// 					videoStart = true
+// 				}
+// 				if !videoStart {
+// 					continue
+// 				}
+// 				err = muxerWebRTC.WritePacket(*pck)
+// 				if err != nil {
+// 					log.WithFields(log.Fields{
+// 						"module":  "http_webrtc",
+// 						"stream":  c.Param("uuid"),
+// 						"channel": c.Param("channel"),
+// 						"func":    "HTTPAPIServerStreamWebRTC",
+// 						"call":    "WritePacket",
+// 					}).Errorln(err.Error())
+// 					return
+// 				}
+// 			}
+// 		}
+// 	}()
 
-	// log.Println("exit webrtc ....................")
-}
+// 	// log.Println("exit webrtc ....................")
+// }

@@ -1,4 +1,4 @@
-package main
+package gss
 
 import (
 	"sort"
@@ -12,15 +12,15 @@ import (
 func (srv *ServerST) StreamHLSAdd(uuid string, channelID string, val []*av.Packet, dur time.Duration) {
 	srv.mutex.Lock()
 	defer srv.mutex.Unlock()
-	if tmp, ok := srv.Streams[uuid]; ok {
+	if tmp, ok := srv.Programs[uuid]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			channelTmp.hlsSegmentNumber++
-			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = &service.Segment{data: val, dur: dur}
+			channelTmp.hlsSegmentBuffer[channelTmp.hlsSegmentNumber] = &Segment{data: val, dur: dur}
 			if len(channelTmp.hlsSegmentBuffer) >= 6 {
 				delete(channelTmp.hlsSegmentBuffer, channelTmp.hlsSegmentNumber-6-1)
 			}
 			tmp.Channels[channelID] = channelTmp
-			srv.Streams[uuid] = tmp
+			srv.Programs[uuid] = tmp
 		}
 	}
 }
@@ -29,7 +29,7 @@ func (srv *ServerST) StreamHLSAdd(uuid string, channelID string, val []*av.Packe
 func (srv *ServerST) StreamHLSm3u8(uuid string, channelID string) (string, int, error) {
 	srv.mutex.RLock()
 	defer srv.mutex.RUnlock()
-	if tmp, ok := srv.Streams[uuid]; ok {
+	if tmp, ok := srv.Programs[uuid]; ok {
 		if channelTmp, ok := tmp.Channels[channelID]; ok {
 			var out string
 			//TODO fix  it
@@ -55,7 +55,7 @@ func (srv *ServerST) StreamHLSm3u8(uuid string, channelID string) (string, int, 
 func (srv *ServerST) StreamHLSTS(streamID string, channelID string, seq int) ([]*av.Packet, error) {
 	srv.mutex.Lock()
 	defer srv.mutex.Unlock()
-	ch, ok := srv.Streams[streamID].Channels[channelID]
+	ch, ok := srv.Programs[streamID].Channels[channelID]
 	if !ok {
 		return nil, ErrorChannelNotFound
 	}
@@ -71,9 +71,9 @@ func (srv *ServerST) StreamHLSTS(streamID string, channelID string, seq int) ([]
 func (srv *ServerST) StreamHLSFlush(streamID string, channelID string) {
 	srv.mutex.Lock()
 	defer srv.mutex.Unlock()
-	ch, ok := srv.Streams[streamID].Channels[channelID]
+	ch, ok := srv.Programs[streamID].Channels[channelID]
 	if ok {
-		ch.hlsSegmentBuffer = make(map[int]*service.Segment)
+		ch.hlsSegmentBuffer = make(map[int]*Segment)
 		ch.hlsSegmentNumber = 0
 	}
 }

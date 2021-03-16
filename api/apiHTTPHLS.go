@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"context"
+	"strconv"
 	"time"
 
+	"github.com/cgoder/deepeyes/gss"
 	"github.com/cgoder/vdk/format/ts"
 	"github.com/gin-gonic/gin"
 
@@ -16,20 +18,20 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 	streamID := c.Param("uuid")
 	channelID := c.Param("channel")
 
-	if !service.StreamChannelExist(streamID, channelID) {
-		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorProgramNotFound.Error()})
+	if !service.ChannelExist(streamID, channelID) {
+		c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorProgramNotFound.Error()})
 		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSM3U8",
 			"call":    "StreamChannelExist",
-		}).Errorln(service.ErrorProgramNotFound.Error())
+		}).Errorln(gss.ErrorProgramNotFound.Error())
 		return
 	}
 
 	c.Header("Content-Type", "application/x-mpegURL")
-	service.StreamChannelRun(context.Background(), streamID, channelID)
+	service.ChannelRun(context.Background(), streamID, channelID)
 
 	//If stream mode on_demand need wait ready segment's
 	for i := 0; i < 40; i++ {
@@ -70,19 +72,19 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 	streamID := c.Param("uuid")
 	channelID := c.Param("channel")
 
-	if !service.StreamChannelExist(streamID, channelID) {
-		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorProgramNotFound.Error()})
+	if !service.ChannelExist(streamID, channelID) {
+		c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorProgramNotFound.Error()})
 		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "StreamChannelExist",
-		}).Errorln(service.ErrorProgramNotFound.Error())
+		}).Errorln(gss.ErrorProgramNotFound.Error())
 		return
 	}
 
-	codecs, err := service.StreamChannelCodecs(streamID, channelID)
+	codecs, err := service.StreamCodecGet(streamID, channelID)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -110,7 +112,18 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		}).Errorln(err.Error())
 		return
 	}
-	seqData, err := service.StreamHLSTS(streamID, channelID, stringToInt(c.Param("seq")))
+	seqi, err := strconv.Atoi(c.Param("seq"))
+	if err != nil {
+		log.WithFields(log.Fields{
+			"module":  "http_hls",
+			"stream":  streamID,
+			"channel": channelID,
+			"func":    "HTTPAPIServerStreamHLSTS",
+			"call":    "Atoi",
+		}).Errorln(err.Error())
+		return
+	}
+	seqData, err := service.StreamHLSTS(streamID, channelID, seqi)
 	if err != nil {
 		c.IndentedJSON(500, Message{Status: 0, Payload: err.Error()})
 		log.WithFields(log.Fields{
@@ -123,14 +136,14 @@ func HTTPAPIServerStreamHLSTS(c *gin.Context) {
 		return
 	}
 	if len(seqData) == 0 {
-		c.IndentedJSON(500, Message{Status: 0, Payload: service.ErrorStreamNotHLSSegments.Error()})
+		c.IndentedJSON(500, Message{Status: 0, Payload: gss.ErrorStreamNotHLSSegments.Error()})
 		log.WithFields(log.Fields{
 			"module":  "http_hls",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamHLSTS",
 			"call":    "seqData",
-		}).Errorln(service.ErrorStreamNotHLSSegments.Error())
+		}).Errorln(gss.ErrorStreamNotHLSSegments.Error())
 		return
 	}
 	for _, v := range seqData {

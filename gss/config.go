@@ -16,7 +16,7 @@ var (
 )
 
 // var config ConfigST
-var config ServerST
+// var server ServerST
 
 func (svr *ServerST) LoadConfig() {
 	viper.SetConfigType("json")
@@ -27,7 +27,7 @@ func (svr *ServerST) LoadConfig() {
 	viper.SetDefault("LogLevel", "debug")
 
 	viper.SetDefault("HTTPPort", ":8084")
-	viper.SetDefault("HTTPDir", "web")
+	viper.SetDefault("HTTPDir", DefaultHTTPDir)
 	viper.SetDefault("HTTPLogin", "admin")
 	viper.SetDefault("HTTPPassword", "admin")
 	viper.SetDefault("HTTPDebug", "true")
@@ -35,28 +35,28 @@ func (svr *ServerST) LoadConfig() {
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
+
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Errorln("init config error:", err)
 		panic("init config error")
 	}
-	log.Infoln("load config ok")
+	// log.Infoln("load config ok")
 
-	// init config
-	// config := ConfigST{}
-
-	err = viper.Unmarshal(svr)
+	err = viper.Unmarshal(&svr)
 	if err != nil {
 		log.Errorln("init config unmarshal error:", err)
 		panic("init config unmarshal error")
 	}
-	// svr.Conf = config
-	log.Infof("config :%+v", svr)
+
+	if svr.Conf.Debug {
+		log.Infof("config :", JsonFormat(&svr))
+	}
 
 	// init log
-	level, _ := log.ParseLevel(config.Conf.LogLevel)
+	level, _ := log.ParseLevel(svr.Conf.LogLevel)
 	log.SetLevel(level)
-	if !config.Conf.Debug {
+	if !svr.Conf.Debug {
 		log.SetOutput(ioutil.Discard)
 	}
 	log.SetFormatter(&log.TextFormatter{

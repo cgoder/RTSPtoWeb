@@ -10,12 +10,16 @@ import (
 )
 
 //ChannelNew new channel svr.
-func ChannelNew(url string, name string) *ChannelST {
+func ChannelNew(ch *ChannelST) *ChannelST {
 	var tmpCh ChannelST
+	if ch != nil {
+		tmpCh = *ch
+	}
+
 	//gen uuid
-	tmpCh.URL = url
-	tmpCh.UUID = GenerateUUID()
-	tmpCh.Name = name
+	if tmpCh.UUID == "" {
+		tmpCh.UUID = GenerateUUID()
+	}
 	if tmpCh.Name == "" {
 		tmpCh.Name = tmpCh.UUID
 	}
@@ -23,7 +27,7 @@ func ChannelNew(url string, name string) *ChannelST {
 	//init source stream
 	var source AvStream
 	source.avQue = pubsub.NewQueue()
-	tmpCh.source = &source
+	tmpCh.source = source
 	//init client's
 	tmpCh.clients = make(map[string]*ClientST)
 
@@ -49,10 +53,12 @@ func ChannelRelease(ch *ChannelST) {
 	var tmpCh ChannelST
 
 	//release
-	ch.source.avQue.Close()
-	ch.source.avQue = nil
+	if ch.source.avQue != nil {
+		ch.source.avQue.Close()
+		ch.source.avQue = nil
+	}
 	var source AvStream
-	ch.source = &source
+	ch.source = source
 	ch.clients = make(map[string]*ClientST)
 	ch.signals = make(chan int, 10)
 	ch.hlsSegmentBuffer = make(map[int]*Segment)

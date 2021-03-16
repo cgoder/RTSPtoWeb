@@ -1,7 +1,8 @@
 package gss
 
 func NewService() *ServerST {
-	svr := &ServerST{}
+	svr := new(ServerST)
 	svr.LoadConfig()
+	svr.LoadDB()
 	return svr
 }

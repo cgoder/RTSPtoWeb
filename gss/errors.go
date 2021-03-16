@@ -9,6 +9,7 @@ var (
 	ErrorProgramAlreadyExists = errors.New("stream already exists")
 	ErrorChannelAlreadyExists = errors.New("stream channel already exists")
 	ErrorChannelNotFound      = errors.New("stream channel not found")
+	ErrorChannelNoSource      = errors.New("stream channel no source stream")
 	ErrorChannelCodecNotFound = errors.New("stream channel codec not ready, possible stream offline")
 	ErrorChannelCodecUpdate   = errors.New("stream channel codec update")
 	ErrorStreamNotHLSSegments = errors.New("stream hls not ts seq found")

@@ -222,7 +222,18 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 			// }
 
 			// write av.Pkt to avQue
-			channel.source.avQue.WritePacket(avPkt)
+			if channel.source.avQue != nil {
+				channel.source.avQue.WritePacket(avPkt)
+			} else {
+				log.WithFields(log.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "streamRtmp",
+					"call":    "ReadPacket",
+				}).Errorln("channel source avQue nil. ", err)
+				panic("channel source avQue nil. ")
+			}
 
 			// if avPkt.IsKeyFrame {
 			// 	if preKeyTS > 0 {
@@ -384,7 +395,19 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 		// read av.Pkt for cast all clients.
 		case avPkt := <-RTSPClient.OutgoingPacketQueue:
 			// Svr.ChannelCast(streamID, channelID, avPkt)
-			channel.source.avQue.WritePacket(*avPkt)
+
+			if channel.source.avQue != nil {
+				channel.source.avQue.WritePacket(*avPkt)
+			} else {
+				log.WithFields(log.Fields{
+					"module":  "core",
+					"stream":  streamID,
+					"channel": channelID,
+					"func":    "streamRtsp",
+					"call":    "ReadPacket",
+				}).Errorln("channel source avQue nil. ", err)
+				panic("channel source avQue nil. ")
+			}
 
 			// if avPkt.IsKeyFrame {
 			// 	if preKeyTS > 0 {
@@ -425,11 +448,12 @@ func writePktToClients(clients map[string]*ClientST, avPkt *av.Packet) {
 
 //readPktToQueue write av.Pkt for all clients. which from channel.av.queue.
 func readPktToQueue(ctx context.Context, streamID string, channelID string, channel *ChannelST) error {
-	var videoStart bool
-	clients := channel.clients
 
 	// get av.Pkt from queue.
 	cursor := channel.source.avQue.Latest()
+
+	var videoStart bool
+	clients := channel.clients
 
 	// checkClients := time.NewTimer(time.Duration(timeoutClientCheck) * time.Second)
 	// defer checkClients.Stop()

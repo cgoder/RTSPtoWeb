@@ -36,38 +36,38 @@ const (
 //StorageST main storage struct
 type ServerST struct {
 	mutex    sync.RWMutex
-	Conf     ConfigST              `json:"conf" groups:"api,config"`
-	Programs map[string]*ProgramST `json:"program" groups:"api,config"`
+	Conf     ConfigST              `mapstructure:"conf"`
+	Programs map[string]*ProgramST `mapstructure:"program"`
 }
 
 //ConfigST server storage section
 type ConfigST struct {
-	Debug        bool   `json:"debug" groups:"api,config"`
-	LogLevel     string `json:"log_level" groups:"api,config"`
-	HTTPDemo     bool   `json:"http_demo" groups:"api,config"`
-	HTTPDebug    bool   `json:"http_debug" groups:"api,config"`
-	HTTPLogin    string `json:"http_login" groups:"api,config"`
-	HTTPPassword string `json:"http_password" groups:"api,config"`
-	HTTPDir      string `json:"http_dir" groups:"api,config"`
-	HTTPPort     string `json:"http_port" groups:"api,config"`
-	RTSPPort     string `json:"rtsp_port" groups:"api,config"`
+	Debug        bool   `mapstructure:"debug"`
+	LogLevel     string `mapstructure:"log_level"`
+	HTTPPort     string `mapstructure:"http_port"`
+	HTTPDir      string `mapstructure:"http_dir"`
+	HTTPLogin    string `mapstructure:"http_login"`
+	HTTPPassword string `mapstructure:"http_password"`
+	HTTPDebug    bool   `mapstructure:"http_debug"`
+	HTTPDemo     bool   `mapstructure:"http_demo"`
+	RTSPPort     string `mapstructure:"rtsp_port"`
 }
 
 //ProgramST stream storage section
 type ProgramST struct {
-	UUID     string
-	Name     string                `json:"name,omitempty" groups:"api,config"`
-	Channels map[string]*ChannelST `json:"channels,omitempty" groups:"api,config"`
+	UUID     string                `mapstructure:"uuid,omitempty"`
+	Name     string                `mapstructure:"name,omitempty"`
+	Channels map[string]*ChannelST `mapstructure:"channels,omitempty"`
 }
 
 type ChannelST struct {
 	// channel uid
-	UUID string
-	Name string `json:"name,omitempty" groups:"api,config"`
+	UUID string `mapstructure:"name,omitempty"`
+	Name string `mapstructure:"name,omitempty"`
 	// channel source stream url
-	URL string `json:"url,omitempty" groups:"api,config"`
+	URL string `mapstructure:"url,omitempty"`
 	// channel source stream
-	source *AvStream
+	source AvStream
 	// channel stream clients
 	clients map[string]*ClientST
 	// channel update. or codec update.
@@ -78,8 +78,8 @@ type ChannelST struct {
 	///////////////////////////////////////////////////
 
 	// auto streaming flag. FALSE==auto. default:false.
-	OnDemand bool `json:"on_demand,omitempty" groups:"api,config"`
-	Debug    bool `json:"debug,omitempty" groups:"api,config"`
+	OnDemand bool `mapstructure:"on_demand,omitempty"`
+	Debug    bool `mapstructure:"debug,omitempty"`
 	///////////////////////////////////////////////////
 
 	// HLS
