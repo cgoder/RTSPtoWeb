@@ -219,22 +219,18 @@ func (svr *ServerST) ChannelStop(programID string, channelID string) error {
 func (svr *ServerST) ChannelAdd(ctx context.Context, programID string, channelID string, ch *ChannelST) error {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	ch, ok := svr.Programs[programID].Channels[channelID]
-	if !ok {
-		return ErrorChannelNotFound
+	if prgm, ok := svr.Programs[programID]; ok {
+		if _, ok := prgm.Channels[channelID]; ok {
+			return ErrorChannelAlreadyExists
+		}
 	}
 
 	svr.Programs[programID].Channels[channelID] = ch
 
 	if !ch.OnDemand {
-		// go StreamServerRunStreamDo(ctx, programID, channelID)
 		go svr.ChannelRun(ctx, programID, channelID)
 	}
 
-	err := svr.SaveConfig()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -244,23 +240,19 @@ func (svr *ServerST) ChannelDelete(programID string, channelID string) error {
 
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[programID].Channels[channelID]
-	if !ok {
-		return ErrorChannelNotFound
-	}
+	if prgm, ok := svr.Programs[programID]; ok {
+		if ch, ok := prgm.Channels[channelID]; ok {
+			for cid, _ := range ch.clients {
+				svr.ClientDelete(programID, channelID, cid)
+			}
 
-	for cid, _ := range svr.Programs[programID].Channels[channelID].clients {
-		svr.ClientDelete(programID, channelID, cid)
+			svr.Programs[programID].Channels[channelID].clients = nil
+			svr.Programs[programID].Channels[channelID].hlsSegmentBuffer = nil
+			delete(svr.Programs[programID].Channels, channelID)
+			return nil
+		}
 	}
-	svr.Programs[programID].Channels[channelID].clients = nil
-	svr.Programs[programID].Channels[channelID].hlsSegmentBuffer = nil
-	delete(svr.Programs[programID].Channels, channelID)
-
-	err := svr.SaveConfig()
-	if err != nil {
-		return err
-	}
-	return nil
+	return ErrorChannelNotFound
 }
 
 //ChannelUpdate edit stream
@@ -269,44 +261,40 @@ func (svr *ServerST) ChannelUpdate(ctx context.Context, programID string, channe
 
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[programID].Channels[channelID]
-	if !ok {
-		return ErrorChannelNotFound
+	if prgm, ok := svr.Programs[programID]; ok {
+		if _, ok := prgm.Channels[channelID]; ok {
+			svr.Programs[programID].Channels[channelID] = ch
+			if !ch.OnDemand {
+				go svr.ChannelRun(ctx, programID, channelID)
+			}
+			return nil
+		}
 	}
-
-	svr.Programs[programID].Channels[channelID] = ch
-
-	if !ch.OnDemand {
-		go svr.ChannelRun(ctx, programID, channelID)
-	}
-
-	err := svr.SaveConfig()
-	if err != nil {
-		return err
-	}
-	return nil
+	return ErrorChannelNotFound
 }
 
 //ChannelGet get stream
 func (svr *ServerST) ChannelGet(programID string, channelID string) (*ChannelST, error) {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	ch, ok := svr.Programs[programID].Channels[channelID]
-	if !ok {
-		return nil, ErrorChannelNotFound
+	if prgm, ok := svr.Programs[programID]; ok {
+		if ch, ok := prgm.Channels[channelID]; ok {
+			return ch, nil
+		}
 	}
-	return ch, nil
+	return nil, ErrorChannelNotFound
 }
 
 //ChannelExist check stream exist
 func (svr *ServerST) ChannelExist(programID string, channelID string) bool {
 	svr.mutex.Lock()
 	defer svr.mutex.Unlock()
-	_, ok := svr.Programs[programID].Channels[channelID]
-	if !ok {
-		return false
+	if prgm, ok := svr.Programs[programID]; ok {
+		if _, ok := prgm.Channels[channelID]; ok {
+			return true
+		}
 	}
-	return true
+	return false
 }
 
 //ChannelReload reload stream
