@@ -107,6 +107,7 @@ func HTTPAPIServer(srv *gss.ServerST) {
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
 	public.POST("/stream/:uuid/channel/:channel/webrtc", HTTPAPIServerStreamWebRTC)
+	// public.POST("/stream/:uuid/channel/:channel/webrtc", HTTPAPIServerStreamWebRTC_orignal)
 	/*
 		Static HTML Files Demo Mode
 	*/

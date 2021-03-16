@@ -20,18 +20,8 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 	channelID := ws.Request().FormValue("channel")
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// close websocket. and release goroutine.
 	defer func() {
 		_ = ws.Close()
-		log.WithFields(log.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "MSE",
-		}).Debugln("MSE Exit")
-
 		cancel()
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -39,58 +29,27 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
 			"call":    "recv avpkt",
-		}).Infoln("Cancel av send goroutine.")
+		}).Infoln("Cancel MSE av send goroutine.")
 	}()
 
 	log.Println("mse++++++")
-	// check stream status
-	ch, err := service.ChannelGet(streamID, channelID)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "StreamChannelGet",
-		}).Errorln(gss.ErrorProgramNotFound.Error())
-		return
-	}
-
-	// streaming
-	err = service.ChannelRun(ctx, streamID, channelID)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"module":  "http_mse",
-			"stream":  streamID,
-			"channel": channelID,
-			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "StreamChannelRun",
-		}).Errorln(err)
-		return
-	}
-	log.WithFields(log.Fields{
-		"module":  "http_mse",
-		"stream":  streamID,
-		"channel": channelID,
-		"func":    "HTTPAPIServerStreamMSE",
-		"call":    "StreamChannelRun",
-	}).Debugln("play stream ---> ", streamID, channelID)
 
 	// get stream av.Codec
-	codecs, err := service.StreamCodecGet(streamID, channelID)
+	codecs, err := service.PlayPre(ctx, streamID, channelID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
 			"stream":  streamID,
 			"channel": channelID,
 			"func":    "HTTPAPIServerStreamMSE",
-			"call":    "StreamCodecs",
+			"call":    "PlayPre",
 		}).Errorln(err.Error())
 		return
 	}
 
 	// add client/player
 	cid, avChanR, err := service.ClientAdd(streamID, channelID, gss.PLAY_MSE)
+	defer service.ClientDelete(streamID, channelID, cid)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"module":  "http_mse",
@@ -101,12 +60,7 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 		}).Errorln(err.Error())
 		return
 	}
-	// log.Println("add client. clients: ", service.ClientCount(streamID, channelID))
-	// defer service.ClientDelete(streamID, cid, channelID)
-	defer func() {
-		service.ClientDelete(streamID, channelID, cid)
-		// log.Println("del client. clients: ", service.ClientCount(streamID, channelID))
-	}()
+
 	log.Println("mse++++++ ok")
 
 	// set websocket timeout for write av.Pkt
@@ -217,15 +171,15 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 					log.Println("mse write pkt cost: ", t2.Sub(t1).String())
 				}
 				if ready {
-					if ch.Debug && avPkt.IsKeyFrame {
-						log.WithFields(log.Fields{
-							"module":  "http_mse",
-							"stream":  streamID,
-							"channel": channelID,
-							"func":    "HTTPAPIServerStreamMSE",
-							"call":    "recv avpkt",
-						}).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", avPkt.IsKeyFrame, len(buf), avPkt.Time, avPkt.Duration)
-					}
+					// if ch.Debug && avPkt.IsKeyFrame {
+					// 	log.WithFields(log.Fields{
+					// 		"module":  "http_mse",
+					// 		"stream":  streamID,
+					// 		"channel": channelID,
+					// 		"func":    "HTTPAPIServerStreamMSE",
+					// 		"call":    "recv avpkt",
+					// 	}).Debugf("Send frame, key:%v, len:%v, DTS:%v, Dur:%v", avPkt.IsKeyFrame, len(buf), avPkt.Time, avPkt.Duration)
+					// }
 
 					err := ws.SetWriteDeadline(time.Now().Add(tiemout_ws * time.Second))
 					if err != nil {
@@ -250,15 +204,15 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 						return
 					}
 				} else {
-					if ch.Debug && len(buf) > 0 {
-						log.WithFields(log.Fields{
-							"module":  "http_mse",
-							"stream":  streamID,
-							"channel": channelID,
-							"func":    "HTTPAPIServerStreamMSE",
-							"call":    "recv avpkt",
-						}).Debugf("Drop frame, key:%v, len:%v, DTS:%v, Dur:%v", avPkt.IsKeyFrame, len(buf), avPkt.Time, avPkt.Duration)
-					}
+					// if ch.Debug && len(buf) > 0 {
+					// 	log.WithFields(log.Fields{
+					// 		"module":  "http_mse",
+					// 		"stream":  streamID,
+					// 		"channel": channelID,
+					// 		"func":    "HTTPAPIServerStreamMSE",
+					// 		"call":    "recv avpkt",
+					// 	}).Debugf("Drop frame, key:%v, len:%v, DTS:%v, Dur:%v", avPkt.IsKeyFrame, len(buf), avPkt.Time, avPkt.Duration)
+					// }
 				}
 				t3 := time.Now()
 				if t3.Sub(t2) > 10*time.Millisecond {
@@ -300,7 +254,6 @@ func HTTPAPIServerStreamMSE(ws *websocket.Conn) {
 						"call":    "WS.Receive",
 					}).Errorln(err.Error())
 				}
-				// eofSignal <- "wsEOF"
 				return
 			}
 

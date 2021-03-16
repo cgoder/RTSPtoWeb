@@ -112,7 +112,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 				"func":    "streamRtmp",
 				"call":    "RTMPConn.Streams",
 			}).Errorln("rtmp get stream codec fail! time: ", time.Now().Local().UTC().Sub(t1).String())
-			return ErrorChannelCodecNotFound
+			return ErrorStreamCodecNotFound
 		}
 
 		log.WithFields(log.Fields{
@@ -199,7 +199,7 @@ func (svr *ServerST) streamRtmp(ctx context.Context, streamID string, channelID 
 				return 0, ErrorStreamStopCoreSignal
 			case SIGNAL_STREAM_AVCODEC_UPDATE:
 				//TODO:
-				// return 0, ErrorChannelCodecUpdate
+				// return 0, ErrorStreamCodecUpdate
 			}
 		//Read av.Pkt,and proxy for all clients.
 		// TODO: av.Pkt be save file here.
@@ -292,7 +292,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 			"func":    "streamRtsp",
 			"call":    "rtspv2.Dial",
 		}).Errorln("rtsp get stream codec fail! time: ", time.Now().Local().UTC().Sub(t1).String())
-		return 0, ErrorChannelCodecNotFound
+		return 0, ErrorStreamCodecNotFound
 	}
 
 	log.WithFields(log.Fields{
@@ -365,7 +365,7 @@ func (svr *ServerST) streamRtsp(ctx context.Context, streamID string, channelID 
 				return 0, ErrorStreamStopCoreSignal
 			case SIGNAL_STREAM_AVCODEC_UPDATE:
 				//TODO:
-				// return 0, ErrorChannelCodecUpdate
+				// return 0, ErrorStreamCodecUpdate
 			}
 		//Read rtsp signals
 		case signals := <-RTSPClient.Signals:
@@ -493,7 +493,7 @@ func readPktToQueue(ctx context.Context, streamID string, channelID string, chan
 		// 		// return 0, ErrorStreamRestart
 		// 	case SIGNAL_STREAM_AVCODEC_UPDATE:
 		// 		//TODO:
-		// 		// return 0, ErrorChannelCodecUpdate
+		// 		// return 0, ErrorStreamCodecUpdate
 		// 	}
 		//Read av.Pkt,and proxy for all clients.
 		// TODO: av.Pkt be save file here.
